@@ -1,0 +1,16 @@
+# llm 모드로 실행하는 덮어쓰기 파일 (OpenAI 요금이 나간다). 기본 실행(docker compose up)에는 적용되지 않는다.
+#   켜기: docker compose -f docker-compose.yml -f docker-compose.llm.yml up -d
+#   끄기(mock으로 복귀): docker compose up -d
+# OPENAI_API_KEY는 저장소 루트의 .env에서 Compose가 직접 읽어 작업자 컨테이너에만 넘긴다 (이 저장소에 복사하지 않는다).
+# 하루 토큰 상한은 검증용으로 낮게 잡았다. 넘으면 새 문의를 받지 않는다.
+
+services:
+  backend:
+    environment:
+      FAE_MODE: llm
+      FAE_DAILY_TOKEN_BUDGET: "150000"
+  worker:
+    environment:
+      FAE_MODE: llm
+      FAE_DAILY_TOKEN_BUDGET: "150000"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?루트 .env에 OPENAI_API_KEY가 있어야 합니다}

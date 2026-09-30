@@ -1,0 +1,29 @@
+# 백엔드(Django) 실행에 필요한 패키지. fae_agent 코어의 실행용 의존성을 함께 적었다 (streamlit·pdfplumber 제외:
+# 화면은 React가 맡고, PDF 색인은 실행 중에 쓰지 않는다). 설치: python -m pip install -r backend/requirements.txt
+
+# 웹·작업 큐
+Django>=5.2,<5.3
+djangorestframework>=3.16
+drf-spectacular>=0.28
+celery>=5.5
+redis>=5.0
+psycopg[binary,pool]>=3.2
+gunicorn>=23.0
+whitenoise>=6.7
+
+# LangGraph 진행 상태를 Postgres에 저장
+langgraph-checkpoint-postgres>=3.0
+
+# fae_agent 코어
+langgraph>=1.0
+langchain>=1.0
+langchain-openai>=1.0
+pydantic>=2.7
+pydantic-settings>=2.3
+python-dotenv>=1.0
+pyyaml>=6.0
+scikit-learn>=1.4
+
+# 테스트
+pytest>=8.0
+pytest-django>=4.8

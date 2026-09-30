@@ -1,0 +1,73 @@
+# FAE Agent 전체 스택: 프론트엔드(nginx) → Django API → Celery 작업자, Postgres, Redis
+#   실행: docker compose up --build        화면: http://localhost:8080
+#   설정: docker/compose.env (기본 mock 모드). llm 모드와 비밀값은 docker/compose.local.env에 적는다.
+
+x-app-env: &app-env
+  env_file:
+    - docker/compose.env
+    - path: docker/compose.local.env
+      required: false
+
+services:
+  db:
+    image: postgres:16-alpine
+    <<: *app-env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    image: fae-backend:local
+    <<: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"  # 개발 확인용 (이 PC에서만 접근). AWS 배포에서는 열지 않는다
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    image: fae-backend:local
+    <<: *app-env
+    command: ["celery", "-A", "config", "worker", "--loglevel=INFO", "--concurrency=2"]
+    working_dir: /app/backend
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    image: fae-frontend:local
+    <<: *app-env  # FAE_BASIC_AUTH_USER/PASSWORD (비밀번호)를 여기서 받는다
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:

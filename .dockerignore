@@ -1,0 +1,24 @@
+# Docker 빌드 컨텍스트에서 뺄 것 (이미지에 비밀·큰 파일이 들어가지 않게)
+.git
+.env
+.env.*
+docker/compose.local.env
+.claude
+.pytest_cache
+.ruff_cache
+**/__pycache__
+**/*.pyc
+**/node_modules
+frontend/dist
+backend/db.sqlite3
+backend/staticfiles
+
+# 데이터는 이미지에 필요한 것만 Dockerfile에서 골라 넣는다 (원본 PDF, 티켓 DB 등 제외)
+data/raw
+data/tickets.db
+data/processed/*
+!data/processed/chunks.jsonl
+
+docs
+app
+tests
