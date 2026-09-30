@@ -1,0 +1,597 @@
+<title>FAE Agent 검토 자료</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* 레이아웃: 데이터시트처럼 좁은 본문 컬럼 + 넓은 표·도식. 섹션 머리말은 영문 대문자 라벨 + 한글 제목 */
+:root {
+  --bg: #f2f5f7;
+  --surface: #ffffff;
+  --ink: #12202a;
+  --muted: #56697a;
+  --line: #d5dee5;
+  --accent: #0a6a86;
+  --accent-soft: #d9edf3;
+  --good: #1c7a4a;
+  --good-soft: #dcf1e5;
+  --warn: #a35f00;
+  --warn-soft: #fbecd0;
+  --bad: #b3372e;
+  --bad-soft: #f8dedb;
+  --neutral-soft: #e6ecf0;
+  --on-accent: #ffffff;
+  --font-body: "IBM Plex Sans KR", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e171d; --surface: #15222b; --ink: #e5edf2; --muted: #93a6b4; --line: #2a3b47;
+    --accent: #56b8d6; --accent-soft: #163847; --good: #5fcf94; --good-soft: #143826;
+    --warn: #efb04e; --warn-soft: #3d2c10; --bad: #f08a80; --bad-soft: #451e1a; --neutral-soft: #1f2f3a; --on-accent: #0e171d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e171d; --surface: #15222b; --ink: #e5edf2; --muted: #93a6b4; --line: #2a3b47;
+  --accent: #56b8d6; --accent-soft: #163847; --good: #5fcf94; --good-soft: #143826;
+  --warn: #efb04e; --warn-soft: #3d2c10; --bad: #f08a80; --bad-soft: #451e1a; --neutral-soft: #1f2f3a; --on-accent: #0e171d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.7; padding-inline: 16px; padding-block: 0 64px; }
+.wrap { max-width: 1040px; margin-inline: auto; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.3; margin: 0; }
+p { margin: 0; }
+a { color: var(--accent); }
+code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+code { background: var(--neutral-soft); padding: 1px 6px; border-radius: 4px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* 머리말 */
+header.top { padding-block: 40px 28px; display: grid; gap: 14px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: clamp(26px, 4.2vw, 40px); font-weight: 600; letter-spacing: -0.01em; }
+.lede { max-width: 66ch; color: var(--muted); font-size: 16px; }
+
+/* 고정 내비게이션 */
+nav.sticky { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-block: 1px solid var(--line); margin-inline: -16px; padding-inline: 16px; }
+nav.sticky .wrap { display: flex; gap: 4px; overflow-x: auto; }
+nav.sticky a { padding: 12px 14px; text-decoration: none; color: var(--muted); font-weight: 500; white-space: nowrap; border-bottom: 2px solid transparent; }
+nav.sticky a:hover, nav.sticky a:focus-visible { color: var(--ink); border-bottom-color: var(--accent); outline: none; }
+
+section { padding-block: 44px 8px; scroll-margin-top: 56px; }
+.sec-head { display: grid; gap: 4px; margin-bottom: 22px; }
+h2 { font-size: clamp(22px, 3vw, 28px); font-weight: 600; }
+h3 { font-size: 17px; font-weight: 600; margin-block: 30px 10px; }
+.sub { color: var(--muted); max-width: 70ch; }
+
+/* 결론 카드 */
+.verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.verdict-head { padding: 18px 20px; background: var(--accent-soft); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
+.verdict-head strong { font-size: 22px; font-weight: 600; }
+.verdict-head span { color: var(--muted); }
+.qrow { display: grid; grid-template-columns: minmax(0, 1.1fr) auto minmax(0, 2fr); gap: 10px 16px; align-items: start; padding: 14px 20px; border-top: 1px solid var(--line); }
+.qrow .q { font-weight: 500; }
+.qrow .why { color: var(--muted); font-size: 14px; }
+@media (max-width: 640px) { .qrow { grid-template-columns: 1fr; gap: 4px; } }
+
+.pill { display: inline-block; font-size: 12.5px; font-weight: 600; padding: 2px 10px; border-radius: 99px; white-space: nowrap; line-height: 1.6; }
+.pill.good { background: var(--good-soft); color: var(--good); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.neutral { background: var(--neutral-soft); color: var(--muted); }
+
+/* 표 */
+.tbl-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; font-size: 12.5px; letter-spacing: 0.02em; color: var(--muted); background: var(--bg); position: sticky; top: 0; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.c, th.c { text-align: center; }
+.min-640 { min-width: 640px; }
+.min-860 { min-width: 860px; }
+.ok { color: var(--good); font-weight: 600; }
+.no { color: var(--bad); font-weight: 600; }
+
+/* 카드·그리드 */
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+.card h4 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.card p { color: var(--muted); font-size: 14px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; margin-top: 8px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.callout { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 14px; }
+.callout.bad { border-color: var(--bad); background: var(--bad-soft); }
+.callout.good { border-color: var(--good); background: var(--good-soft); }
+.callout strong { font-weight: 600; }
+ul.plain { margin: 6px 0 0; padding-left: 20px; }
+ul.plain li { margin-block: 3px; }
+
+/* 도식 */
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+figure .scroll { overflow-x: auto; }
+figure svg { display: block; width: 100%; height: auto; min-width: 640px; }
+figcaption { color: var(--muted); font-size: 13.5px; margin-top: 10px; max-width: 80ch; }
+svg text { font-family: var(--font-body); fill: var(--ink); }
+svg .mono { font-family: var(--font-mono); }
+svg .muted { fill: var(--muted); }
+svg .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.4; }
+svg .box.acc { fill: var(--accent-soft); stroke: var(--accent); }
+svg .box.human { fill: var(--warn-soft); stroke: var(--warn); }
+svg .box.gray { fill: var(--neutral-soft); stroke: var(--line); }
+svg .layer { fill: var(--bg); stroke: var(--line); stroke-width: 1; }
+svg .arrow { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+svg .arrow.loop { stroke: var(--warn); stroke-dasharray: 5 4; }
+svg .arrow.dash { stroke-dasharray: 5 4; }
+svg .head { fill: var(--muted); }
+svg .head.loop { fill: var(--warn); }
+svg .b-acc { fill: var(--accent); }
+svg .b-accsoft { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+svg .b-gray { fill: var(--neutral-soft); stroke: var(--line); }
+svg .b-bad { fill: var(--bad); }
+svg .b-warn { fill: var(--warn); }
+svg .b-good { fill: var(--good); }
+svg .on-acc { fill: var(--on-accent); }
+svg .grid { stroke: var(--line); stroke-width: 1; }
+
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); margin-top: 8px; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">SKN AI 개인 프로젝트 · 2026-09-29 기준</div>
+  <h1>FAE Agent<br>기획안, 아키텍처, 가능성 검증</h1>
+  <p class="lede">반도체 고객의 기술 문의를 받아 데이터시트 근거와 계산 결과가 붙은 답변 초안을 만들고, FAE가 승인하면 나가게 하는 시스템입니다.
+  실제 TI 부품 3종의 데이터시트와 가상 문의 32건(교과서 수준 20건, 구체적인 문의 12건)으로 끝까지 돌려 본 결과를 정리했습니다.</p>
+
+  <div class="verdict" role="group" aria-label="검증 결론">
+    <div class="verdict-head"><strong>결론: 조건부로 가능</strong><span>흐름은 동작하고 답에 근거와 계산 숫자가 붙지만, 원인 정확도는 도구 없는 LLM보다 높지 않았고 검증의 신뢰성과 비용은 아직 부족합니다.</span></div>
+    <div class="qrow"><div class="q">실제 부품·데이터시트로 끝까지 돌아가는가</div><div><span class="pill good">예</span></div><div class="why">3종 32건이 오류 없이 완료됐고, 인용 239건 중 존재하지 않는 출처는 2건이었습니다.</div></div>
+    <div class="qrow"><div class="q">도구 없는 LLM보다 원인을 더 잘 맞히는가</div><div><span class="pill bad">아니오 (이번 실험)</span></div><div class="why">쉬운 문의 1순위 15/18 대 15/18, 구체적 문의 7/10 대 9/10. 표본이 작고 채점자가 작성자입니다.</div></div>
+    <div class="qrow"><div class="q">근거와 계산 숫자를 답에 실어 주는가</div><div><span class="pill good">예</span></div><div class="why">구체적 문의에서 정답 숫자가 답에 나온 비율 11/18 대 4/18. 고객의 틀린 전제("500 mA까지 된다")를 부품 카드로 바로잡았습니다.</div></div>
+    <div class="qrow"><div class="q">계산·시뮬레이션 검증이 믿을 만한가</div><div><span class="pill bad">현재는 아니오</span></div><div class="why">테스트 47개 중 55%가 값 대조이고 5개는 무조건 통과합니다. 검수가 이를 걸러내지 못했습니다.</div></div>
+    <div class="qrow"><div class="q">비용과 시간이 감당 가능한가</div><div><span class="pill bad">현재는 아니오</span></div><div class="why">구체적 문의 건당 17,860 토큰(기준선의 23.8배), 26초(5.4배). 검수 미통과로 끝난 4건이 토큰의 43%를 썼습니다.</div></div>
+  </div>
+</header>
+</div>
+
+<nav class="sticky" aria-label="섹션"><div class="wrap">
+  <a href="#plan">1. 기획안</a><a href="#arch">2. 아키텍처</a><a href="#report">3. 검증 보고서</a><a href="#next">4. 다음 단계</a>
+</div></nav>
+
+<div class="wrap">
+
+<!-- ===================== 1. 기획안 ===================== -->
+<section id="plan">
+  <div class="sec-head"><div class="eyebrow">Proposal</div><h2>1. 기획안</h2>
+  <p class="sub">고객 문의는 대개 부품 불량이 아니라 회로 설계와 사용 조건 문제입니다. 그래서 문서와 계산으로 풀 수 있고, 결과를 숫자로 확인할 수 있습니다.</p></div>
+
+  <div class="grid3">
+    <div class="card"><h4>풀려는 문제</h4><p>FAE는 문의마다 데이터시트에서 정격과 조건을 찾고, 손계산이나 시뮬레이션으로 원인을 확인한 뒤 답을 씁니다. 같은 종류의 문의가 반복됩니다.</p></div>
+    <div class="card"><h4>만들려는 것</h4><p>근거 페이지와 계산 과정이 붙은 답변 초안. FAE는 처음부터 조사하지 않고 검토하고 승인하는 데 시간을 씁니다.</p></div>
+    <div class="card"><h4>지키는 원칙</h4><p>승인 없이는 발송되지 않습니다. 데이터시트는 사람이 내려받고, 포럼은 요약 카드만 씁니다. 실제 고객 정보는 넣지 않습니다.</p></div>
+  </div>
+
+  <h3>범위: 세 가지 문의 유형</h3>
+  <div class="tbl-wrap"><table class="min-640">
+    <thead><tr><th>유형</th><th>예</th><th>이 프로젝트가 하는 일</th></tr></thead>
+    <tbody>
+      <tr><td><strong>기술 문의 (메인)</strong></td><td>출력 발진, 과열, 리플·노이즈, 전원이 안 켜짐, 출력 전압 이상, 통신 오류</td><td>근거 검색 → 원인 가설 3개 → 계산·시뮬레이션으로 재현과 해결 확인 → 검수 → 답변 초안 → 사람 승인</td></tr>
+      <tr><td>품질 클레임</td><td>불량 반품, 파손</td><td>CPR 필수 자료 체크리스트와 8D 초안까지. 실물 불량 분석은 하지 않음</td></tr>
+      <tr><td>배송·기타</td><td>납기, 주문, 샘플</td><td>분류해서 담당 부서로 넘기는 초안까지</td></tr>
+    </tbody></table></div>
+
+  <h3>핵심 가설과 검증 상태</h3>
+  <div class="tbl-wrap"><table class="min-640">
+    <thead><tr><th>가설</th><th>내용</th><th>상태</th><th>근거 (부품 3종, 문의 32건)</th></tr></thead>
+    <tbody>
+      <tr><td><strong>H1</strong> 근거·숫자가 붙은 초안</td><td>실제 데이터시트 페이지를 인용하고 계산 숫자를 답에 싣는다</td><td><span class="pill good">확인</span></td><td>인용 239건 중 없는 출처 2건. 정답 숫자가 답에 나온 비율 11/18 대 4/18. 주장을 뒷받침하는지는 미확인</td></tr>
+      <tr><td><strong>H2</strong> 숫자로 검증</td><td>계산·시뮬레이션으로 원인과 해결책을 확인한다</td><td><span class="pill warn">부분</span></td><td>테스트의 40%가 실제 공식 계산. 11%는 무조건 통과</td></tr>
+      <tr><td><strong>H3</strong> 단순 LLM보다 원인을 잘 맞힌다</td><td>도구 없는 LLM보다 원인 적중률이 높다</td><td><span class="pill bad">아니오</span></td><td>쉬운 문의 1순위 15/18 대 15/18, 구체적 문의 7/10 대 9/10. 틀린 전제 정정에서만 앞섬</td></tr>
+      <tr><td><strong>H4</strong> 사람 승인</td><td>승인 없이 발송되지 않는다</td><td><span class="pill good">확인</span></td><td>승인·수정 요청·반려가 실제 라이브러리에서 동작</td></tr>
+    </tbody></table></div>
+  <div class="callout" style="margin-top:14px"><strong>가치 제안을 이렇게 잡습니다.</strong> 정확도 향상이 아니라 "근거와 계산 숫자가 붙고 고객의 틀린 전제를 바로잡은 초안을 사람이 승인한다"는 것입니다. 비용은 도구 없는 LLM의 약 24배라서, 이 가치가 비용을 정당화하는지가 다음 검증 질문입니다.</div>
+
+  <h3>성공 기준 (안)</h3>
+  <div class="tbl-wrap"><table class="min-640">
+    <thead><tr><th>항목</th><th>목표</th><th>현재</th></tr></thead>
+    <tbody>
+      <tr><td>원인 Top-3 (팀원의 블라인드 문의 30건 이상, 사람 2명 채점)</td><td>기준선과 같거나 높음. 정답 숫자·전제 정정 비율은 기준선보다 높음</td><td>쉬운 문의 17/18, 구체적 문의 8/10 (기준선 9/10). 작성자가 채점</td></tr>
+      <tr><td>자기 참조·잘못 적용된 테스트</td><td>0건</td><td>자기 참조 5개, 확인된 오용 3건 (규칙 추가 후 재측정 전)</td></tr>
+      <tr><td>근거 없는 인용</td><td>0건</td><td>239건 중 2건</td></tr>
+      <tr><td>재분석 횟수</td><td>건당 0.5회 이하</td><td>구체적 문의 1.58회 (규칙 추가 후 재측정 전)</td></tr>
+      <tr><td>건당 비용·시간</td><td>기준선의 5배 이내</td><td>구체적 문의 토큰 23.8배, 시간 5.4배</td></tr>
+      <tr><td>승인 없이 발송</td><td>0건</td><td>0건 (구조상 불가)</td></tr>
+    </tbody></table></div>
+
+  <h3>리스크</h3>
+  <div class="tbl-wrap"><table class="min-640">
+    <thead><tr><th>리스크</th><th>대응</th></tr></thead>
+    <tbody>
+      <tr><td>검수가 잘못된 통과를 허용해 "검증됨"으로 보임</td><td>검수 규칙 강화, 승인 화면에 테스트 종류를 표시</td></tr>
+      <tr><td>사용 조건 문제를 품질 불량으로 분류 ("타 버림" 문의가 CPR 경로로 가서 정격 초과 설명이 빠짐)</td><td>품질 클레임 경로에 정격 점검 추가 (완료). 조건 추출 오류와 부품 카드 부족은 위험으로 남음</td></tr>
+      <tr><td>새 검수 규칙이 재분석을 늘려 비용 증가 (재분석 건당 1.58회)</td><td>고칠 수 없는 지적은 경고로 낮추고 재분석 상한 유지</td></tr>
+      <tr><td>쉬운 문의로 평가해 성능을 과대평가</td><td>팀원 블라인드 문의, 실제 E2E 사례를 요약한 문의 추가</td></tr>
+      <tr><td>부품 카드를 잘못 옮기면 모든 초안이 틀림</td><td>카드마다 페이지 명시, 두 사람이 교차 확인</td></tr>
+      <tr><td>비용·시간, 재분석 횟수의 변동</td><td>재분석 상한 유지, 작은 모델 분리, 토큰 기록</td></tr>
+      <tr><td>규칙이 없는 부품군(예: 연산증폭기)은 LLM 추론에만 의존</td><td>도구 확장, 지원 범위를 화면에 표시</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ===================== 2. 아키텍처 ===================== -->
+<section id="arch">
+  <div class="sec-head"><div class="eyebrow">Architecture</div><h2>2. 아키텍처</h2>
+  <p class="sub">에이전트는 LangGraph로 잇고, 도구는 항상 게이트웨이를 거쳐 부릅니다. 같은 코드가 함수 직접 호출과 MCP 서버 호출 두 방식으로 돕니다.</p></div>
+
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 980 470" width="980" height="470" role="img" aria-label="계층 구조: 화면, 에이전트, 도구 게이트웨이, MCP 서버, 데이터">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <!-- 레이어 1 -->
+      <rect class="layer" x="20" y="14" width="700" height="66" rx="8"/>
+      <text x="36" y="38" font-size="12" class="mono muted">화면</text>
+      <rect class="box" x="120" y="24" width="290" height="46" rx="6"/><text x="135" y="44" font-size="14" font-weight="600">Streamlit</text><text x="135" y="61" font-size="12" class="muted">문의 입력 · 처리 과정 · 승인 버튼 · 파형 그래프</text>
+      <rect class="box" x="424" y="24" width="282" height="46" rx="6"/><text x="439" y="44" font-size="14" font-weight="600">CLI</text><text x="439" y="61" font-size="12" class="muted">run · eval · ingest · check · tickets</text>
+      <path class="arrow" d="M370,80 L370,108" marker-end="url(#ah)"/>
+      <!-- 레이어 2 -->
+      <rect class="layer" x="20" y="108" width="700" height="116" rx="8"/>
+      <text x="36" y="132" font-size="12" class="mono muted">에이전트</text>
+      <text x="120" y="132" font-size="14" font-weight="600">LangGraph  ·  상태(State)를 노드끼리 넘김</text>
+      <g font-size="12.5">
+        <rect class="box acc" x="120" y="144" width="76" height="30" rx="5"/><text x="158" y="164" text-anchor="middle">접수</text>
+        <rect class="box acc" x="204" y="144" width="76" height="30" rx="5"/><text x="242" y="164" text-anchor="middle">조사</text>
+        <rect class="box acc" x="288" y="144" width="76" height="30" rx="5"/><text x="326" y="164" text-anchor="middle">분석</text>
+        <rect class="box acc" x="372" y="144" width="76" height="30" rx="5"/><text x="410" y="164" text-anchor="middle">테스트</text>
+        <rect class="box acc" x="456" y="144" width="76" height="30" rx="5"/><text x="494" y="164" text-anchor="middle">검수</text>
+        <rect class="box acc" x="540" y="144" width="76" height="30" rx="5"/><text x="578" y="164" text-anchor="middle">응답</text>
+        <rect class="box human" x="624" y="144" width="86" height="30" rx="5"/><text x="667" y="164" text-anchor="middle">사람 승인</text>
+      </g>
+      <text x="120" y="200" font-size="12" class="muted">mock: 규칙(playbook.py) · llm: 프롬프트(prompts.py). 같은 그래프가 두 방식으로 돈다</text>
+      <text x="120" y="216" font-size="12" class="muted">승인 노드는 interrupt()로 멈췄다가 Command(resume=…)로 재개</text>
+      <path class="arrow" d="M370,224 L370,252" marker-end="url(#ah)"/>
+      <!-- 레이어 3 -->
+      <rect class="layer" x="20" y="252" width="700" height="62" rx="8"/>
+      <text x="36" y="276" font-size="12" class="mono muted">게이트웨이</text>
+      <rect class="box" x="120" y="264" width="586" height="40" rx="6"/>
+      <text x="135" y="282" font-size="13.5" font-weight="600" class="mono">ToolGateway.call("서버.도구", …)</text>
+      <text x="135" y="297" font-size="12" class="muted">TOOL_MODE=local: 함수 직접 호출  /  mcp: MCP 서버를 stdio로 띄워 호출</text>
+      <path class="arrow" d="M370,314 L370,342" marker-end="url(#ah)"/>
+      <!-- 레이어 4 -->
+      <rect class="layer" x="20" y="342" width="700" height="58" rx="8"/>
+      <text x="36" y="366" font-size="12" class="mono muted">MCP 서버</text>
+      <g font-size="12.5">
+        <rect class="box gray" x="120" y="352" width="140" height="38" rx="5"/><text x="190" y="368" text-anchor="middle" font-weight="600">calc · 10개</text><text x="190" y="383" text-anchor="middle" class="muted" font-size="11">설계 공식</text>
+        <rect class="box gray" x="268" y="352" width="140" height="38" rx="5"/><text x="338" y="368" text-anchor="middle" font-weight="600">kb · 4개</text><text x="338" y="383" text-anchor="middle" class="muted" font-size="11">검색 · 부품 카드</text>
+        <rect class="box gray" x="416" y="352" width="140" height="38" rx="5"/><text x="486" y="368" text-anchor="middle" font-weight="600">spice · 3개</text><text x="486" y="383" text-anchor="middle" class="muted" font-size="11">ngspice 실행</text>
+        <rect class="box gray" x="564" y="352" width="142" height="38" rx="5"/><text x="635" y="368" text-anchor="middle" font-weight="600">tickets · 5개</text><text x="635" y="383" text-anchor="middle" class="muted" font-size="11">SQLite 기록</text>
+      </g>
+      <path class="arrow" d="M370,400 L370,424" marker-end="url(#ah)"/>
+      <!-- 레이어 5 -->
+      <rect class="layer" x="20" y="424" width="700" height="40" rx="8"/>
+      <text x="36" y="448" font-size="12" class="mono muted">데이터</text>
+      <text x="120" y="448" font-size="12.5">부품 카드 yaml · 문서 조각 jsonl · 사례 카드 · 티켓 DB · 회로 템플릿 .cir</text>
+      <!-- 외부 LLM -->
+      <rect class="box gray" x="770" y="122" width="190" height="88" rx="8"/>
+      <text x="865" y="148" text-anchor="middle" font-size="14" font-weight="600">OpenAI</text>
+      <text x="865" y="167" text-anchor="middle" font-size="12" class="muted">gpt-5.4-mini</text>
+      <text x="865" y="186" text-anchor="middle" font-size="12" class="muted">llm 모드에서만 호출</text>
+      <path class="arrow dash" d="M770,150 L724,150" marker-end="url(#ah)"/>
+      <text x="770" y="236" font-size="12" class="muted">접수 · 분석 · 응답이 호출.</text>
+      <text x="770" y="252" font-size="12" class="muted">검수는 규칙이라 호출 없음.</text>
+    </svg>
+    </div>
+    <figcaption>계층 구조. 에이전트가 도구 함수를 직접 import해서 부르지 않는 것이 규칙입니다. 그래서 local과 mcp 방식을 코드 변경 없이 바꿀 수 있습니다. 도구 개수는 현재 코드 기준입니다.</figcaption>
+  </figure>
+
+  <h3>처리 흐름</h3>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1040 400" width="1040" height="400" role="img" aria-label="처리 흐름: 접수부터 사람 승인까지, 검수 미통과 시 재분석 루프">
+      <defs>
+        <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path class="head loop" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <text x="30" y="30" font-size="12" class="mono muted">기술 문의 경로 (technical)</text>
+      <g font-size="14" font-weight="600">
+        <rect class="box acc" x="30" y="44" width="118" height="58" rx="7"/><text x="89" y="70" text-anchor="middle">접수·분류</text><text x="89" y="89" text-anchor="middle" font-size="11" font-weight="400" class="muted">분류·부품·증상</text>
+        <rect class="box acc" x="175" y="44" width="118" height="58" rx="7"/><text x="234" y="70" text-anchor="middle">기술 조사</text><text x="234" y="89" text-anchor="middle" font-size="11" font-weight="400" class="muted">문서·부품 카드</text>
+        <rect class="box acc" x="320" y="44" width="118" height="58" rx="7"/><text x="379" y="70" text-anchor="middle">원인 분석</text><text x="379" y="89" text-anchor="middle" font-size="11" font-weight="400" class="muted">가설 3 · 계획</text>
+        <rect class="box acc" x="465" y="44" width="118" height="58" rx="7"/><text x="524" y="70" text-anchor="middle">테스트</text><text x="524" y="89" text-anchor="middle" font-size="11" font-weight="400" class="muted">calc · ngspice</text>
+        <rect class="box acc" x="610" y="44" width="118" height="58" rx="7"/><text x="669" y="70" text-anchor="middle">검수</text><text x="669" y="89" text-anchor="middle" font-size="11" font-weight="400" class="muted">근거·결과·정격</text>
+        <rect class="box acc" x="755" y="44" width="118" height="58" rx="7"/><text x="814" y="70" text-anchor="middle">답변 초안</text><text x="814" y="89" text-anchor="middle" font-size="11" font-weight="400" class="muted">인용 · 내부 메모</text>
+        <rect class="box human" x="900" y="44" width="118" height="58" rx="7"/><text x="959" y="70" text-anchor="middle">사람 승인</text><text x="959" y="89" text-anchor="middle" font-size="11" font-weight="400" class="muted">승인·수정·반려</text>
+      </g>
+      <g class="arrow">
+        <path d="M148,73 L173,73" marker-end="url(#ah2)"/><path d="M293,73 L318,73" marker-end="url(#ah2)"/><path d="M438,73 L463,73" marker-end="url(#ah2)"/>
+        <path d="M583,73 L608,73" marker-end="url(#ah2)"/><path d="M728,73 L753,73" marker-end="url(#ah2)"/><path d="M873,73 L898,73" marker-end="url(#ah2)"/>
+      </g>
+      
+      <!-- 재분석 루프 -->
+      <path class="arrow loop" d="M669,102 L669,158 L379,158 L379,106" marker-end="url(#ah3)"/>
+      <text x="524" y="150" text-anchor="middle" font-size="12.5" fill="var(--warn)" style="fill:var(--warn)" font-weight="600">미통과 → 재분석 (최대 2회)</text>
+      <!-- 수정 요청 루프 -->
+      <path class="arrow loop" d="M959,102 L959,178 L814,178 L814,106" marker-end="url(#ah3)"/>
+      <text x="886" y="196" text-anchor="middle" font-size="12" style="fill:var(--warn)">수정 요청 → 초안 다시</text>
+      <!-- 품질 클레임 -->
+      <text x="30" y="232" font-size="12" class="mono muted">품질 클레임 (quality_claim)</text>
+      <rect class="box gray" x="175" y="244" width="263" height="44" rx="7"/><text x="306" y="263" text-anchor="middle" font-size="13" font-weight="600">정격 점검 → CPR 점검 · 8D</text><text x="306" y="280" text-anchor="middle" font-size="11" class="muted">고객 값 대 부품 카드 한계, 경로는 그대로</text>
+      <path class="arrow" d="M89,102 L89,266 L173,266" marker-end="url(#ah2)"/>
+      <path class="arrow" d="M438,266 L770,266 L770,104" marker-end="url(#ah2)"/>
+      <!-- 배송·기타 -->
+      <text x="30" y="322" font-size="12" class="mono muted">배송·기타 (logistics · other)</text>
+      <rect class="box gray" x="175" y="334" width="263" height="44" rx="7"/><text x="306" y="361" text-anchor="middle" font-size="13.5" font-weight="600">바로 답변 초안 (담당 부서 안내)</text>
+      <path class="arrow" d="M89,266 L89,356 L173,356" marker-end="url(#ah2)"/>
+      <path class="arrow" d="M438,356 L795,356 L795,104" marker-end="url(#ah2)"/>
+    </svg>
+    </div>
+    <figcaption>같은 흐름이 mock(규칙)과 llm(모델) 두 방식으로 돕니다. 승인되면 티켓 상태가 answered로 기록됩니다. 검수 미통과는 지적 코드(reproduce_fail, verify_fail, rating_not_addressed, no_evidence, test_error)에 따라 원인 분석이 다음 가설로 넘어가거나 값을 바꿉니다.</figcaption>
+  </figure>
+
+  <h3>테스트의 두 목적 (예: TPS7A20 T-01, 입력 5.5 V → 출력 3.3 V, 0.3 A, 45 °C)</h3>
+  <div class="steps">
+    <div class="card"><h4>reproduce: 증상이 정말 나오는가</h4><p>고객 조건으로 계산합니다. 손실 (5.5−3.3)×0.3 = 0.66 W에 θJA 187.1 °C/W를 곱하면 접합 온도는 <strong class="num">168.5 °C</strong>로 한계 125 °C를 넘습니다. 통과하면 "과열이라는 가설이 맞다"는 뜻입니다.</p></div>
+    <div class="card"><h4>verify: 해결책이 통하는가</h4><p>해결책을 적용한 값으로 다시 계산합니다. 입력을 낮춘 안에서 접합 온도가 <strong class="num">61.8 °C</strong>로 내려가 목표 125 °C 이하입니다. 통과하면 "해결책이 목표를 만족한다"는 뜻입니다.</p></div>
+    <div class="card"><h4>테스트가 붙는 도구</h4><p><code>calc.ldo_thermal_estimate</code> 같은 공식 계산과 <code>spice.run_circuit</code>(ngspice)입니다. 회로 시뮬레이션은 수정 전·후 파형을 겹쳐 화면에 그립니다.</p></div>
+  </div>
+
+  <h3>검수 지적과 재분석 규칙</h3>
+  <div class="tbl-wrap"><table class="min-640">
+    <thead><tr><th>검수 지적</th><th>원인 분석이 하는 일</th></tr></thead>
+    <tbody>
+      <tr><td><code>reproduce_fail</code></td><td>1순위 가설이 증상을 재현하지 못함 → 다음 가설을 1순위로</td></tr>
+      <tr><td><code>verify_fail</code></td><td>해결책이 목표 미달 → 변경 폭을 키움 (llm은 역산하도록 프롬프트로 안내)</td></tr>
+      <tr><td><code>rating_not_addressed</code></td><td>정격 초과를 놓침 → 정격 초과 가설을 맨 앞에 추가</td></tr>
+      <tr><td><code>no_evidence</code>, <code>test_error</code></td><td>llm에서 지적 내용을 프롬프트로 전달해 다시 작성</td></tr>
+    </tbody></table></div>
+  <div class="callout" style="margin-top:14px"><strong>알려진 약점:</strong> 검수는 "결과가 기대 범위 안인가"만 봅니다. 기대 범위가 의미 있는지(값이 경계와 같지 않은지, 도구가 맞는지)는 보지 않습니다. 정격 초과 판정도 원인 후보에 "정격"이라는 단어가 있는지로 합니다. 3장에서 이 때문에 생긴 문제를 다룹니다.</div>
+</section>
+
+<!-- ===================== 3. 검증 보고서 ===================== -->
+<section id="report">
+  <div class="sec-head"><div class="eyebrow">Feasibility report</div><h2>3. 검증 보고서</h2>
+  <p class="sub">실제 데이터시트로 부품 카드를 만들고, 가상 문의 32건(교과서 수준 20건, 구체적인 12건)을 세 가지 방식으로 돌려 비교했습니다.</p></div>
+
+  <h3>무엇을 시험했나</h3>
+  <div class="tbl-wrap"><table class="min-640">
+    <thead><tr><th>부품</th><th>종류</th><th>데이터시트</th><th>부품 카드에 옮긴 값</th></tr></thead>
+    <tbody>
+      <tr><td><strong>TPS7A20</strong></td><td>LDO 300 mA</td><td class="mono">SBVS338H, 63쪽</td><td>절대 최대 입력 6.5 V, 권장 1.6~6.0 V, 출력 커패시터 1~200 µF, ESR ≤ 100 mΩ, θJA 187.1 °C/W</td></tr>
+      <tr><td><strong>LM2596</strong></td><td>벅 150 kHz, 3 A</td><td class="mono">SNVS124G, 47쪽</td><td>절대 최대 입력 45 V, 기준 전압 1.23 V, 전류 제한 4.5 A, θJA 50/30/20 °C/W, ON/OFF 핀 극성</td></tr>
+      <tr><td><strong>LMV321A</strong></td><td>연산증폭기</td><td class="mono">SBOS923I, 58쪽</td><td>공급 전압 최대 6 V, GBW 1 MHz, 슬루율 1.7 V/µs, 오프셋 최대 4 mV, 동상 범위</td></tr>
+    </tbody></table></div>
+  <div class="grid3" style="margin-top:14px">
+    <div class="card"><h4>문의 32건</h4><p>교과서 수준 20건(부품당 기술 6건 + 품질 클레임 1건 + 배송 1건)과 구체적인 12건(부품당 4건: 잘못된 전제, 정상인데 불량 의심, 정보 부족, 측정값과 계산 불일치 등). 정답 원인과 정답 숫자를 함께 적음.</p></div>
+    <div class="card"><h4>비교한 세 방식</h4><dl class="kv"><dt>mock</dt><dd>규칙 기반, LLM 없음</dd><dt>파이프라인</dt><dd>검색 + 분석 + 계산 + 검수 (gpt-5.4-mini)</dd><dt>기준선</dt><dd>같은 모델에 문의만 주고 1회 호출</dd></dl></div>
+    <div class="card"><h4>실행 횟수</h4><p>쉬운 문의: 파이프라인 1회차 20건, 반복 2회는 각 9건에서 중단(토큰 약 53만), 기준선은 20건씩 2회. 구체적 문의: 파이프라인과 기준선 각 1회(토큰 약 22만).</p></div>
+  </div>
+
+  <h3>원인 분석 정확도: 파이프라인 대 기준선 (수동 채점, 교과서 수준 18건)</h3>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 760 210" width="760" height="210" role="img" aria-label="수동 채점: 1순위와 Top-3 적중, 파이프라인 대 기준선">
+      <g class="grid"><line x1="230" y1="20" x2="230" y2="176"/><line x1="480" y1="20" x2="480" y2="176" style="stroke-dasharray:3 4"/><line x1="730" y1="20" x2="730" y2="176"/></g>
+      <text x="230" y="196" text-anchor="middle" font-size="11.5" class="muted num">0</text>
+      <text x="480" y="196" text-anchor="middle" font-size="11.5" class="muted num">9</text>
+      <text x="730" y="196" text-anchor="middle" font-size="11.5" class="muted num">18건</text>
+      <!-- 1순위 -->
+      <text x="16" y="40" font-size="13" font-weight="600">1순위 적중</text>
+      <text x="220" y="42" text-anchor="end" font-size="12" class="muted">파이프라인</text>
+      <rect class="b-acc" x="230" y="28" width="416.7" height="20" rx="3"/><text x="654" y="43" font-size="12.5" class="num" font-weight="600">15</text>
+      <text x="220" y="70" text-anchor="end" font-size="12" class="muted">기준선</text>
+      <rect class="b-gray" x="230" y="56" width="416.7" height="20" rx="3"/><text x="654" y="71" font-size="12.5" class="num" font-weight="600">15</text>
+      <!-- Top-3 -->
+      <text x="16" y="120" font-size="13" font-weight="600">Top-3 적중</text>
+      <text x="220" y="122" text-anchor="end" font-size="12" class="muted">파이프라인</text>
+      <rect class="b-acc" x="230" y="108" width="472.2" height="20" rx="3"/><text x="710" y="123" font-size="12.5" class="num" font-weight="600">17</text>
+      <text x="220" y="150" text-anchor="end" font-size="12" class="muted">기준선</text>
+      <rect class="b-gray" x="230" y="136" width="416.7" height="20" rx="3"/><text x="654" y="151" font-size="12.5" class="num" font-weight="600">15</text>
+    </svg>
+    </div>
+    <figcaption>표본 18건, 작성자가 채점했습니다. 1순위는 같고 Top-3는 파이프라인이 2건 많지만, 이 차이만으로 우위라고 하기는 어렵습니다. 자동 키워드 판정은 17/18 대 16/18로 나왔고, 수동 채점과 틀리는 사례가 양쪽에 있었습니다.</figcaption>
+  </figure>
+
+  <div class="grid3" style="margin-top:14px">
+    <div class="card"><h4>파이프라인이 이긴 3건</h4><p><strong>T-02</strong> 입력 6.8 V가 절대 최대 6.5 V 초과, <strong>L-04</strong> 분압 2.7k/1k이면 1.23×3.7 = 4.55 V, <strong>A-03</strong> 3.3 V 전원의 동상 입력 상한 2.3 V. 모두 <em>데이터시트의 구체적 숫자</em>가 필요한 문의입니다. 기준선은 놓쳤습니다.</p></div>
+    <div class="card"><h4>기준선이 이긴 3건</h4><p><strong>T-06</strong> 제목이 "정격 초과"로 잘못 붙음(설명은 맞음), <strong>L-03</strong> 1순위가 "LC 공진"으로 오판, <strong>A-02</strong> 이득 1000의 오프셋 오차를 후보에 못 넣음. 일반 지식으로 풀리는 문의입니다.</p></div>
+    <div class="card"><h4>나머지 12건</h4><p>둘 다 맞혔습니다. 문의가 교과서 수준이라 일반 LLM도 잘 풉니다. 파이프라인의 실제 강점은 정확도보다 <em>근거 페이지와 계산이 붙는 것</em>일 수 있습니다.</p></div>
+  </div>
+
+  <h3>검증 테스트의 질: 가장 중요한 발견</h3>
+  <p class="sub" style="margin-bottom:14px">반복 2회(각 9건)의 테스트 47개(참고용 계산 제외)를 종류별로 나눴습니다.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 760 130" width="760" height="130" role="img" aria-label="테스트 47개의 구성: 공식 계산 19, 시뮬레이션 2, 값 대조 21, 자기 참조 5">
+      <!-- 폭 700 = 47개, 1개당 14.894 -->
+      <rect class="b-acc" x="30" y="30" width="283.0" height="34" rx="3"/>
+      <rect class="b-accsoft" x="313" y="30" width="29.8" height="34"/>
+      <rect class="b-gray" x="342.8" y="30" width="312.8" height="34"/>
+      <rect class="b-bad" x="655.6" y="30" width="74.4" height="34" rx="3"/>
+      <g font-size="13" font-weight="600" class="num">
+        <text x="171" y="52" text-anchor="middle" class="on-acc">공식 계산 19</text>
+        <text x="498" y="52" text-anchor="middle">값 대조 21</text>
+        <text x="693" y="52" text-anchor="middle" class="on-acc">5</text>
+      </g>
+      <text x="328" y="84" text-anchor="middle" font-size="11.5" class="muted">시뮬 2</text>
+      <path class="arrow" d="M328,66 L328,74" style="stroke-width:1"/>
+      <text x="693" y="84" text-anchor="middle" font-size="11.5" class="muted">자기 참조</text>
+      <text x="30" y="110" font-size="12" class="muted">공식 계산 40% · 시뮬레이션 4% · 값 대조 45% · 값이 합격 범위 경계와 같아 무조건 통과 11%</text>
+    </svg>
+    </div>
+    <figcaption>값 대조(<code>check_value</code>)는 데이터시트 한계와 숫자를 비교하는 테스트입니다. 정격 초과 확인에는 유효하지만, 값과 범위를 모델이 직접 정하기 때문에 통과가 쉽습니다. 공식 계산(접합 온도, 리플, 출력 전압)이 입력에 따라 실패할 수 있는 진짜 검증입니다.</figcaption>
+  </figure>
+
+  <div class="tbl-wrap" style="margin-top:14px"><table class="min-640">
+    <thead><tr><th>발견한 문제</th><th>예</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td>자기 참조 테스트</td><td>T-05: 값 0.0, 합격 범위 0.0~0.1 ("EN 플로팅 재현")<br>T-06: 값 0.3, 합격 범위 0.3~0.3<br>L-03: 값 4.7 µH, 최소 4.7 µH</td><td>무조건 통과</td></tr>
+      <tr><td>맞지 않는 도구</td><td>A-01: 연산증폭기에 LC 필터 부하 스텝 시뮬레이션을 돌려 <code>undershoot_pct=0</code>을 "안정화 확인"으로 씀<br>T-06: 드롭아웃을 접합 온도 계산으로 "재현"</td><td>검수 통과</td></tr>
+      <tr><td>문자열로 판정하는 규칙</td><td>검수는 원인 후보에 "정격"이 있는지로 정격 초과 누락을 판정. 프롬프트도 "정격 초과를 명시"하라고 함. T-06은 0.3 A가 권장 최대와 같을 뿐인데 제목이 "정격 초과"</td><td>라벨 오탐 (3회 모두)</td></tr>
+    </tbody></table></div>
+  <div class="callout bad" style="margin-top:14px"><strong>그래서 "검수 18/18 통과"는 정확도 증거가 아닙니다.</strong> 검수는 결과가 범위 안인지만 볼 뿐 범위가 의미 있는지는 보지 않아서, 위 세 가지를 하나도 거르지 못했습니다.</div>
+  <div class="callout good" style="margin-top:12px"><strong>검증 루프가 제 역할을 한 경우도 있습니다.</strong> r2의 L-02, r3의 L-03은 제안한 해결책의 계산 결과가 목표에 못 미쳐(예: 리플 61 mV > 목표 50 mV) 3회 재분석 후에도 미통과로 끝났습니다. 계산 도구가 붙은 가설에서는 의도대로 동작합니다.</div>
+
+  <h3>비용, 시간, 변동성</h3>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 760 190" width="760" height="190" role="img" aria-label="건당 토큰과 시간: 파이프라인 대 기준선">
+      <text x="16" y="34" font-size="13" font-weight="600">건당 토큰</text>
+      <text x="16" y="52" font-size="12" class="muted">15.7배</text>
+      <text x="150" y="34" text-anchor="end" font-size="12" class="muted">파이프라인</text>
+      <rect class="b-acc" x="160" y="20" width="520" height="20" rx="3"/><text x="688" y="35" font-size="12.5" class="num" font-weight="600">11,500</text>
+      <text x="150" y="64" text-anchor="end" font-size="12" class="muted">기준선</text>
+      <rect class="b-gray" x="160" y="50" width="33.1" height="20" rx="3"/><text x="200" y="65" font-size="12.5" class="num" font-weight="600">732</text>
+      <text x="16" y="124" font-size="13" font-weight="600">건당 시간</text>
+      <text x="16" y="142" font-size="12" class="muted">4.8배</text>
+      <text x="150" y="124" text-anchor="end" font-size="12" class="muted">파이프라인</text>
+      <rect class="b-acc" x="160" y="110" width="520" height="20" rx="3"/><text x="688" y="125" font-size="12.5" class="num" font-weight="600">13.9초</text>
+      <text x="150" y="154" text-anchor="end" font-size="12" class="muted">기준선</text>
+      <rect class="b-gray" x="160" y="140" width="108.5" height="20" rx="3"/><text x="276" y="155" font-size="12.5" class="num" font-weight="600">2.9초</text>
+    </svg>
+    </div>
+    <figcaption>1회차 20건 기준. 파이프라인 입력 188,012 + 출력 41,995 = 230,007 토큰. 금액은 모델 단가를 확인하지 못해 계산하지 않았습니다.</figcaption>
+  </figure>
+  <div class="tbl-wrap" style="margin-top:14px"><table class="min-640">
+    <thead><tr><th>같은 9건 (T-01~T-06, L-01~L-03)</th><th class="c">1회차</th><th class="c">반복 2</th><th class="c">반복 3</th></tr></thead>
+    <tbody>
+      <tr><td>재분석 횟수 합</td><td class="c num">1</td><td class="c num">7</td><td class="c num">5</td></tr>
+      <tr><td>건당 평균 시간</td><td class="c num">14.5초</td><td class="c num">20.6초</td><td class="c num">19.6초</td></tr>
+      <tr><td>자동 판정 Top-3</td><td class="c num">9/9</td><td class="c num">8/9</td><td class="c num">9/9</td></tr>
+      <tr><td>검수 통과</td><td class="c num">9/9</td><td class="c num">8/9</td><td class="c num">8/9</td></tr>
+    </tbody></table></div>
+  <p class="sub" style="margin-top:10px">정확도는 비교적 안정적이고, 흔들리는 것은 재분석 횟수(곧 비용과 시간)입니다. 1순위 제목이 바뀌는 사례도 있었습니다(T-01은 반복 3에서 "정격 초과").</p>
+
+  <h3>근거 인용</h3>
+  <p class="sub">원인 후보에 붙은 인용 196건(1회차 94, 반복 2에서 53, 반복 3에서 49) 중 존재하지 않는 출처는 1건이었습니다("근거 목록"이라고만 적음). 반복 2·3은 모델이 받은 근거 안에서만 인용했습니다.
+  출처가 존재하는지만 확인했고 그 페이지가 주장을 뒷받침하는지는 확인하지 못했습니다. 처음 집계에서 "절반이 환각"으로 나온 것은 대괄호와 카드 표기 차이를 잘못 센 측정 오류였고, 정규화한 뒤 위 수치가 됐습니다.</p>
+
+  <h3>mock(규칙 기반)은 제품 경로가 아니다</h3>
+  <p class="sub">분류 정확도 13/20, 증상 코드 8/18, 원인 Top-3 8/18(자동). 실패 7건 중 6건은 문의에 규칙이 아는 증상 단어가 없어 "기타"가 됐고, A-04는 고객이 "불량인가요?"라고 물어 품질 클레임으로 갔습니다. mock은 API 키 없이 흐름과 테스트를 돌리는 개발용 뼈대입니다.</p>
+
+  <h3>사례별 결과: 교과서 수준 18건</h3>
+  <div class="tbl-wrap"><table class="min-860">
+    <thead><tr><th>ID</th><th>문의 요지</th><th class="c">파이프라인<br>1 · Top-3</th><th class="c">기준선<br>1 · Top-3</th><th>테스트의 성격</th><th>메모</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">T-01</td><td>TPS7A20 과열, 5.5 V→3.3 V, 0.3 A</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>공식 계산 (Tj 168.5 → 61.8 °C)</td><td></td></tr>
+      <tr><td class="mono">T-02</td><td>입력 6.8 V (정격 6.5 V)</td><td class="c ok">✓ ✓</td><td class="c no">✗ ✗</td><td>정격 대조 + 계산</td><td>기준선은 정격 초과를 언급 안 함</td></tr>
+      <tr><td class="mono">T-03</td><td>출력 커패시터 470 µF 링잉</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>값 대조 (470 µF 대 200 µF)</td><td></td></tr>
+      <tr><td class="mono">T-04</td><td>탄탈 ESR 1.5 Ω 발진</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>값 대조 (ESR 대 0.1 Ω)</td><td></td></tr>
+      <tr><td class="mono">T-05</td><td>EN 핀 플로팅, 출력 0 V</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>값 대조</td><td>반복에서 자기 참조 테스트 발생</td></tr>
+      <tr><td class="mono">T-06</td><td>입력 3.4 V, 부하에서 출력 저하</td><td class="c"><span class="no">✗</span> <span class="ok">✓</span></td><td class="c ok">✓ ✓</td><td>계산 오용 (열 계산으로 드롭아웃 재현)</td><td>제목 "정격 초과"(오탐), 설명은 드롭아웃으로 맞음</td></tr>
+      <tr><td class="mono">L-01</td><td>LM2596 과열, 12 V→5 V, 2 A</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>공식 계산 (Tj 224.9 → 114 °C)</td><td></td></tr>
+      <tr><td class="mono">L-02</td><td>출력 리플 180 mV</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>공식 계산 (181.7 → 31.7 mV)</td><td>정답 값 약 177 mV와 일치</td></tr>
+      <tr><td class="mono">L-03</td><td>인덕터 4.7 µH로 교체 후 링잉</td><td class="c"><span class="no">✗</span> <span class="ok">✓</span></td><td class="c ok">✓ ✓</td><td>공식 계산이나 "전류 제한 근접" 가설은 검증 못 함</td><td>1순위가 "LC 공진"</td></tr>
+      <tr><td class="mono">L-04</td><td>분압 2.7k/1k, 출력 4.5 V</td><td class="c ok">✓ ✓</td><td class="c no">✗ ✗</td><td>공식 계산 (수정 후 5.031 V)</td><td>기준선은 4.55 V를 계산 못 함</td></tr>
+      <tr><td class="mono">L-05</td><td>ON/OFF 핀을 3.3 V로 연결</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>값 대조</td><td>극성 오해 (LOW가 ON)</td></tr>
+      <tr><td class="mono">L-06</td><td>입력 서지 50 V (정격 45 V)</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>값 대조 (50 V 대 45 V)</td><td></td></tr>
+      <tr><td class="mono">A-01</td><td>LMV321A 버퍼, 케이블 300 pF 발진</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>도구 오용 (LC 필터 시뮬레이션)</td><td><code>undershoot_pct=0</code>을 안정화로 해석</td></tr>
+      <tr><td class="mono">A-02</td><td>이득 1000, 입력 0인데 출력 2 V</td><td class="c no">✗ ✗</td><td class="c ok">✓ ✓</td><td>값 대조</td><td>오프셋을 후보에 못 넣음</td></tr>
+      <tr><td class="mono">A-03</td><td>3.3 V 단전원, 입력 2.5 V 이상 왜곡</td><td class="c ok">✓ ✓</td><td class="c no">✗ ✗</td><td>값 대조</td><td>기준선은 출력 여유로 설명</td></tr>
+      <tr><td class="mono">A-04</td><td>2 kΩ 부하, 출력 4.95 V ("불량?")</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>값 대조, verify는 무의미</td><td>정상 범위(최대 75 mV 부족)로 판단</td></tr>
+      <tr><td class="mono">A-05</td><td>12 V 전원 연결</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>값 대조 (12 V 대 6 V)</td><td></td></tr>
+      <tr><td class="mono">A-06</td><td>500 kHz, 3 Vpp가 삼각파로</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>값 대조 (필요 4.71 V/µs 대 1.7)</td><td></td></tr>
+    </tbody></table></div>
+
+  <h3>구체적인 문의 12건 (9월 30일)</h3>
+  <p class="sub" style="margin-bottom:14px">교과서 수준 문의는 일반 LLM도 풀어서 두 방식의 차이가 거의 나지 않았습니다. 그래서 데이터시트 숫자를 계산하거나 고객의 틀린 전제를 바로잡아야 답이 나오는 문의 12건을 새로 만들었습니다.
+  예를 들면 <strong>H-T1</strong> X2SON 패키지에서 주변 85 °C, 5.0→3.3 V, 0.3 A, 출력이 켜졌다 꺼짐 반복(정답 Tj 169.7 °C, 열 차단 165 °C 초과), <strong>H-L1</strong> 리플 120 mV(계산 12.8 mV, 프로브 GND 리드 문제), <strong>H-A1</strong> 게인 10에서 200 kHz 출력이 절반(슬루율이 아니라 GBW 100 kHz)입니다.</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 760 250" width="760" height="250" role="img" aria-label="구체적인 문의 12건: 원인 1순위, 정답 숫자, 건당 토큰의 파이프라인 대 기준선">
+      <line class="grid" x1="230" y1="14" x2="230" y2="236"/>
+      <text x="16" y="26" font-size="13" font-weight="600">원인 1순위 적중 (10건 중)</text>
+      <text x="220" y="48" text-anchor="end" font-size="12" class="muted">파이프라인</text>
+      <rect class="b-acc" x="230" y="34" width="350" height="18" rx="3"/><text x="588" y="48" font-size="12.5" class="num" font-weight="600">7</text>
+      <text x="220" y="72" text-anchor="end" font-size="12" class="muted">기준선</text>
+      <rect class="b-gray" x="230" y="58" width="450" height="18" rx="3"/><text x="688" y="72" font-size="12.5" class="num" font-weight="600">9</text>
+      <text x="16" y="106" font-size="13" font-weight="600">정답 숫자가 답에 나온 비율 (18개 중)</text>
+      <text x="220" y="128" text-anchor="end" font-size="12" class="muted">파이프라인</text>
+      <rect class="b-acc" x="230" y="114" width="305.6" height="18" rx="3"/><text x="543" y="128" font-size="12.5" class="num" font-weight="600">11</text>
+      <text x="220" y="152" text-anchor="end" font-size="12" class="muted">기준선</text>
+      <rect class="b-gray" x="230" y="138" width="111.1" height="18" rx="3"/><text x="349" y="152" font-size="12.5" class="num" font-weight="600">4</text>
+      <text x="16" y="186" font-size="13" font-weight="600">건당 토큰</text>
+      <text x="220" y="208" text-anchor="end" font-size="12" class="muted">파이프라인</text>
+      <rect class="b-acc" x="230" y="194" width="440" height="18" rx="3"/><text x="678" y="208" font-size="12.5" class="num" font-weight="600">17,860</text>
+      <text x="220" y="232" text-anchor="end" font-size="12" class="muted">기준선</text>
+      <rect class="b-gray" x="230" y="218" width="18.5" height="18" rx="3"/><text x="256" y="232" font-size="12.5" class="num" font-weight="600">751 (파이프라인이 23.8배)</text>
+    </svg>
+    </div>
+    <figcaption>원인 채점은 정보 부족 2건을 뺀 10건이고, 작성자가 채점했습니다. 정답 숫자는 문의마다 미리 정한 값(예: 169.7 °C, 12.8 mV)이 답에 나오는지 자동으로 센 것입니다.</figcaption>
+  </figure>
+
+  <div class="tbl-wrap" style="margin-top:14px"><table class="min-860">
+    <thead><tr><th>ID</th><th>유형</th><th class="c">파이프라인<br>1 · Top-3</th><th class="c">기준선<br>1 · Top-3</th><th>메모</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">H-T1</td><td>패키지·온도, 불량 의심</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>파이프라인은 Tj <strong>169.7 °C</strong>를 계산. 기준선은 "열 보호일 가능성"만</td></tr>
+      <tr><td class="mono">H-T2</td><td>잘못된 전제 (500 mA)</td><td class="c ok">✓ ✓</td><td class="c no">✗ ✗</td><td>기준선은 "500 mA급이라도…"로 전제를 받아들임. 파이프라인은 300 mA로 정정하나 검수 미통과</td></tr>
+      <tr><td class="mono">H-T3</td><td>정상 허용오차 (3.34 V)</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>둘 다 "정상 범위"</td></tr>
+      <tr><td class="mono">H-T4</td><td>정보 부족</td><td class="c">-</td><td class="c">-</td><td>되묻기 4/4 대 3/4. 파이프라인은 정보가 없는데 "예시 계산 204.6 °C"를 제시</td></tr>
+      <tr><td class="mono">H-L1</td><td>측정 문제 (계산 12.8 mV, 측정 120 mV)</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>둘 다 프로브 GND 리드를 짚음. 파이프라인의 테스트는 엉뚱한 LC 시뮬레이션</td></tr>
+      <tr><td class="mono">H-L2</td><td>4 A, 정격 3 A 초과</td><td class="c no">✗ ✗</td><td class="c ok">✓ ✓</td><td>파이프라인은 "커패시터 ESR"이라 답함. 인덕턴스를 0으로 넣어 <code>test_error</code> 3회</td></tr>
+      <tr><td class="mono">H-L3</td><td>48 V 연결 후 "타 버림"</td><td class="c no">✗ ✗</td><td class="c ok">✓ ✓</td><td>파이프라인은 품질 클레임 경로로 가서 45 V 초과를 말하지 못함</td></tr>
+      <tr><td class="mono">H-L4</td><td>분압 + 허용오차</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>파이프라인은 11.32 V 계산</td></tr>
+      <tr><td class="mono">H-A1</td><td>GBW (슬루율 미끼)</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>기준선은 "슬루율/대역폭"으로 뭉뚱그림. 파이프라인은 검수 미통과(자기 참조)</td></tr>
+      <tr><td class="mono">H-A2</td><td>오프셋 × 이득 500</td><td class="c"><span class="no">✗</span> <span class="ok">✓</span></td><td class="c ok">✓ ✓</td><td>파이프라인 1순위는 "동상 범위 위반", 오프셋은 2순위</td></tr>
+      <tr><td class="mono">H-A3</td><td>정보 부족</td><td class="c">-</td><td class="c">-</td><td>되묻기 4/4 대 4/4</td></tr>
+      <tr><td class="mono">H-A4</td><td>부품 혼동 (1채널)</td><td class="c ok">✓ ✓</td><td class="c ok">✓ ✓</td><td>둘 다 "1채널"</td></tr>
+    </tbody></table></div>
+
+  <div class="grid3" style="margin-top:14px">
+    <div class="card"><h4>파이프라인이 나았던 곳</h4><p>정답 숫자와 전제 정정입니다. H-T1은 Tj 169.7 °C를 직접 계산했고, H-T2는 기준선이 받아들인 "500 mA까지 된다"를 부품 카드의 300 mA로 바로잡았습니다.</p></div>
+    <div class="card"><h4>졌던 곳</h4><p><strong>H-L2</strong> 카드에 <code>iout_max 3.0</code>이 있는데 4 A를 못 짚음, <strong>H-L3</strong> "타 버림"이라 품질 클레임 경로로 감, <strong>H-A2</strong> 1순위가 동상 범위 위반. 원인 적중은 오히려 낮았습니다.</p></div>
+    <div class="card"><h4>검수가 못 잡은 것</h4><p>측정 문제(H-L1)에 회로 시뮬레이션을 돌린 것, 정보가 없는데 예시 값으로 계산한 것(H-T4). 도구 종류는 맞지만 용도가 틀린 경우입니다.</p></div>
+  </div>
+  <div class="callout bad" style="margin-top:14px"><strong>새 검수는 재분석을 크게 늘렸습니다.</strong> 재분석 합 19회(건당 1.58회, 교과서 수준 20건은 3회). 검수 미통과로 끝난 4건(H-T2, H-L2, H-A1, H-A2)이 토큰의 43%(91,505)를 쓰고도 나아지지 않았습니다.
+  원인은 해결 확인 단계에서 한계값을 그대로 검증값으로 쓴 것(자기 참조)과, 고객이 주지 않은 인덕턴스를 0으로 넣어 계산이 죽은 것(<code>test_error</code>)입니다.</div>
+  <div class="callout" style="margin-top:12px"><strong>이후 조치 (재측정 전).</strong> 자기 참조 지적을 재현 테스트에만 적용하고 해결 확인은 경고로 바꿨습니다. 프롬프트에는 "안 준 값을 0으로 넣지 않는다", "해결 후 값이 한계와 같아지면 여유를 둔다", "핵심 조건이 없으면 예시 값으로 계산하지 않는다"를 추가했습니다.
+  아직 LLM으로 다시 돌리지 않아 효과는 모릅니다(재측정에 약 20만 토큰 필요).</div>
+  <div class="callout good" style="margin-top:12px"><strong>품질 클레임 경로에 정격 점검을 추가했습니다 (9월 30일).</strong> 경로는 바꾸지 않고, 고객이 알려 준 값을 부품 카드 한계와 비교한 결과만 답변·8D·내부 메모에 붙입니다. H-L3를 LLM으로 다시 돌리면(3,512 토큰) 답변 첫 문단에서 "알려 주신 값 기준으로 입력 48 V는 절대 최대 45 V와 권장 최대 40 V를 초과"를 짚고 반품 절차는 유지합니다(정답 숫자 2/2). 진짜 불량 사례(X-01)는 정격 초과를 주장하지 않았습니다. 한계: 접수 단계의 조건 추출이 틀리면 잘못된 비교가 되고(규칙 기반 접수는 "입력 4.5V에서 60V까지"에서 4.5 V를 읽음), 부품 카드가 있는 부품에서만 작동합니다.</div>
+
+  <h3>이 결과를 읽을 때 주의할 점</h3>
+  <ul class="plain">
+    <li>문의를 쓴 사람, 시스템을 고친 사람, 채점한 사람이 같습니다. 파이프라인에 유리하게 나왔을 가능성이 있습니다.</li>
+    <li>실제 고객 문의가 아닙니다. 교과서 수준 18건과 구체적 문의 10건(원인 채점 대상)으로 표본이 작아 결론이 아니라 경향입니다. 구체적 12건도 작성자가 채점했습니다.</li>
+    <li>새 검수 규칙과 프롬프트 수정의 효과는 아직 LLM으로 재측정하지 않았습니다.</li>
+    <li>수동 채점은 1회차만 했고 반복 2·3은 자동 판정과 테스트 분석만 했습니다.</li>
+    <li>연산증폭기는 진단 규칙이 없어서 LLM 추론에만 의존한 결과입니다.</li>
+    <li>모델은 gpt-5.4-mini 하나만 시험했습니다.</li>
+  </ul>
+</section>
+
+<!-- ===================== 4. 다음 단계 ===================== -->
+<section id="next">
+  <div class="sec-head"><div class="eyebrow">Roadmap</div><h2>4. 다음 단계</h2>
+  <p class="sub">급한 순서대로 나열했습니다. 1번을 하기 전에 평가를 넓히면 잘못된 통과가 섞인 점수가 나옵니다.</p></div>
+  <div class="tbl-wrap"><table class="min-640">
+    <thead><tr><th>순서</th><th>할 일</th><th>완료 기준</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1</strong></td><td><strong>검수 강화 (일부 완료)</strong>: 완료 - 재현 테스트의 자기 참조 거부, 부품에 맞지 않는 도구 거부, 정격 판정을 수치 비교로. 남음 - reproduce 대조군(정상 조건이면 실패해야 통과), 도구 용도 확인(측정 문제에 회로 시뮬레이션), 정보가 없을 때 예시 계산 금지를 코드로 강제</td><td>자기 참조·오용 0건, 재분석 건당 0.5회 이하</td></tr>
+      <tr><td><strong>2</strong></td><td><strong>품질 클레임 경로에서 정격 비교 (완료)</strong>: "타 버림" 문의도 부품 카드 정격과 먼저 비교해 답변·8D에 붙임 (H-L3 재확인). 남은 것은 조건 추출 오류 방지와 부품 카드 확대</td><td>H-L3 통과 (확인됨)</td></tr>
+      <tr><td><strong>3</strong></td><td><strong>권장 범위를 벗어난 값을 원인 후보에 반드시 포함</strong>: 지금은 절대 최대 초과만 강제함 (H-L2의 4 A는 권장 초과라 놓침)</td><td>H-L2 통과</td></tr>
+      <tr><td><strong>4</strong></td><td><strong>도구 추가</strong>: LDO 드롭아웃 여유, 벅 인덕터 리플 전류와 전류 제한 마진, 연산증폭기(슬루율, 오프셋×이득, 동상 범위, 용량성 부하 안정성)</td><td>새 도구마다 reproduce·verify 테스트</td></tr>
+      <tr><td><strong>5</strong></td><td><strong>평가 확대</strong>: 팀원이 결과를 보지 않고 쓴 문의 30건 이상, 사람 2명 채점, 3회 반복, 기준선과 비교</td><td>기준선과 같은 원인 적중률, 정답 숫자·전제 정정 비율은 더 높게</td></tr>
+      <tr><td><strong>6</strong></td><td><strong>비용 관리</strong>: 토큰 기록을 코드에 넣기, 접수·검수에 작은 모델, 재분석 상한 유지</td><td>기준선의 5배 이내</td></tr>
+      <tr><td><strong>7</strong></td><td><strong>인용 검증</strong>: 임베딩 검색, 인용한 문장이 근거 조각에 실제 있는지 자동 확인</td><td>근거 없는 인용 0건</td></tr>
+    </tbody></table></div>
+
+  <h3>팀원과 정해야 할 것</h3>
+  <ul class="plain">
+    <li><strong>부품 범위</strong>: 이번 3종을 유지할지, 5~10종으로 넓힐지</li>
+    <li><strong>블라인드 문의</strong>: 각자 시스템 결과를 보지 않고 문의 몇 건씩 쓸 수 있는지, 사람 채점을 누가 맡을지</li>
+    <li><strong>가치 제안</strong>: 정확도가 아니라 "근거와 계산 숫자가 붙은 초안 + 사람 승인"으로 갈지</li>
+    <li><strong>우선순위</strong>: 검수 강화(1번), 경로 보완(2·3번), 도구 확장(4번) 중 무엇을 먼저 할지</li>
+    <li><strong>역할 분담(제안)</strong>: 데이터(부품·사례 카드), 도구(계산·시뮬레이션), 에이전트·프롬프트·검수, 화면·연동, 평가</li>
+  </ul>
+
+  <footer>
+    <p>원본과 재현 자료는 프로젝트의 <code>docs/proposal.md</code>, <code>docs/feasibility_report.md</code>, <code>docs/feasibility/</code>(실행 스크립트, 사례별 원자료)에 있습니다.
+    문의와 정답은 <code>data/eval/eval_real_parts.jsonl</code>(교과서 수준 20건)과 <code>data/eval/eval_hard_cases.jsonl</code>(구체적 12건), 부품 카드는 <code>data/parts/</code>입니다. 부품 카드의 값은 데이터시트에서 직접 옮겼지만, 옮기는 과정의 오독 가능성은 남아 있어 교차 확인이 필요합니다.</p>
+  </footer>
+</section>
+</div>
