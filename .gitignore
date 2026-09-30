@@ -31,8 +31,9 @@ data/processed/*
 !data/processed/.gitkeep
 data/*.db
 
-# Claude Code 개인 설정 (공유용 CLAUDE.md, .claude/settings.json은 올림)
+# 작업 도구 개인 설정·규칙 (로컬에만 둔다)
 # launch.json에는 내 PC의 절대 경로(사용자 이름 포함)가 들어 있어 올리지 않는다
+CLAUDE.md
 CLAUDE.local.md
 .claude/settings.local.json
 .claude/launch.json
