@@ -1,0 +1,12 @@
+# 가상의 예시 부품입니다. 실제 부품은 데이터시트를 보고 채우세요.
+part_number: EXAMPLE-SENSOR1
+type: sensor
+description: 가상의 I2C 온도 센서 (예시 값)
+abs_max:
+  vdd_v: 4.0
+recommended:
+  vdd_min_v: 1.7
+  vdd_max_v: 3.6
+interface:
+  i2c_modes: [standard, fast]
+source: 예시 값 (실제 부품은 데이터시트 이름·페이지)

@@ -1,0 +1,21 @@
+# 가상의 예시 부품입니다. 실제 부품은 데이터시트를 보고 같은 형식으로 채우고,
+# source에 데이터시트 이름과 페이지를 적어 두세요 (답변의 근거로 인용됩니다).
+part_number: EXAMPLE-BUCK1
+type: buck            # buck | ldo | sensor | opamp ...
+description: 가상의 4.5–28 V 입력, 3 A 동기 벅 컨버터 (예시 값)
+abs_max:
+  vin_v: 30
+recommended:
+  vin_min_v: 4.5
+  vin_max_v: 28
+  iout_max_a: 3.0
+  tj_max_c: 125
+typical:
+  vref_v: 0.6
+  fsw_hz: 500000
+  efficiency: 0.9
+  current_limit_a: 4.5
+  soft_start_s: 0.001
+thermal:
+  theta_ja_c_per_w: 40
+source: 예시 값 (실제 부품은 데이터시트 이름·페이지)

@@ -1,0 +1,40 @@
+# TI TPS54331 3 A, 28 V 입력 비동기 강압(벅) 컨버터. 값은 데이터시트에서 직접 옮김 (SLVS839H, 2023-10). 이 문서의 절 번호는 6.x.
+part_number: TPS54331
+type: buck
+description: 3 A 연속 출력, 입력 3.5–28 V, 570 kHz 고정, 전류 모드 제어(내부 슬로프 보상), 비동기(외부 캐치 다이오드), Eco-mode
+abs_max:                       # §6.1 p.4
+  vin_v: 30                    # 권장 최대는 28 V. EN 6 V, BOOT 38 V, PH 30 V
+  tj_max_c: 150
+recommended:                   # §6.3 p.4
+  vin_min_v: 3.5
+  vin_max_v: 28
+  iout_max_a: 3.0              # p.1 특징: 내장 80 mΩ 하이사이드 MOSFET으로 최대 3 A 연속 출력
+  tj_max_c: 150                # 동작 접합 온도 −40~150 °C
+typical:
+  vref_v: 0.8                  # §6.5 p.5: 기준 전압 (0.772–0.828 V). VSENSE 분압으로 출력 설정, 출력은 0.8 V까지 낮출 수 있음
+  fsw_hz: 570000               # §6.6 p.6: VIN=12 V, 25 °C 전형 570 kHz (456–684 kHz)
+  min_on_time_s: 130.0e-9      # §6.6 p.6: 최소 제어 가능 온타임 전형 105 ns / 최대 130 ns (VIN=12 V, 25 °C)
+  max_duty: 0.90               # §6.6 p.6: 최대 듀티 최소 90 % (전형 93 %), BOOT-PH=6 V
+  rdson_ohm: 0.08              # §6.5 p.5: BOOT-PH=6 V, VIN=12 V 전형 80 mΩ (최대 150 mΩ). VIN=3.5 V(BOOT-PH=3 V)는 115 mΩ
+  current_limit_a: 5.8         # §6.5 p.5: 전류 제한 문턱 VIN=12 V 전형 5.8 A, 최소 3.5 A (최대 값 없음)
+  current_limit_a_min: 3.5
+  uvlo_v_max: 3.5              # §6.5 p.5: 내부 UVLO 문턱(상승·하강) 최대 3.5 V — 표의 MAX 열 값
+  enable_threshold_v: 1.25     # §6.5 p.5: EN 문턱 전형 1.25 V (최대 1.35 V). 분압으로 입력 UVLO를 프로그램 가능
+  shutdown_current_a: 1.0e-6   # §6.5 p.5: EN=0 V, VIN=12 V 전형 1 µA (최대 4 µA)
+  quiescent_current_a: 110.0e-6   # §6.5 p.5: 비스위칭 동작 전류 전형 110 µA (최대 190 µA)
+  ss_charge_current_a: 2.0e-6  # §6.5 p.5: SS 핀 충전 전류 2 µA
+  eco_mode_switch_current_a: 0.16   # §6.5 p.5: 피크 인덕터 전류가 160 mA 아래면 펄스 스키핑 (경부하 효율용)
+  error_amp_gm_umho: 92        # §6.5 p.5: 전달컨덕턴스, DC 이득 800 V/V, 단위이득 대역폭 2.7 MHz
+  thermal_shutdown_c: 165      # §6.5 p.5
+thermal:                       # §6.4 p.5
+  theta_ja_c_per_w: 116.3      # D(SOIC-8). DDA(SO PowerPAD-8)는 48.7 °C/W
+  packages_theta_ja_c_per_w:
+    D_SOIC8: 116.3
+    DDA_HSOIC8_PowerPAD: 48.7
+notes:
+  - 비동기 방식이라 외부 캐치 다이오드(D1)가 필수다. 다이오드가 없거나 느리면 출력이 나오지 않거나 스위치 노드(PH)가 음전압 한계(−0.6 V)를 넘는다 (p.1 회로도, §6.1 p.4).
+  - 슬로프 보상이 내부에 있어 세라믹 출력 커패시터를 쓸 수 있고, 외부 보상은 COMP 핀의 RC로 잡는다 (p.1).
+  - 소프트 스타트는 SS 핀 커패시터로 정한다. 시간은 1~10 ms 사이로 잡아야 하고 커패시터는 27 nF를 넘지 않아야 한다 (§7.3.5 p.11, SS 충전 전류 2 µA).
+  - (데이터시트 값으로 계산한 추정) 최소 온타임이 최대 130 ns라서 VIN이 높고 VOUT이 낮으면 펄스를 건너뛰어 출력이 불안정해질 수 있다. 안정하게 낼 수 있는 최소 출력 ≈ 130 ns × 570 kHz × VIN (VIN=28 V면 약 2.1 V, VIN=12 V면 약 0.9 V).
+  - (데이터시트 값으로 계산한 추정) 최대 듀티가 최소 90 %라서 VIN이 VOUT/0.9 아래로 내려가면 출력이 유지되지 않는다 (VOUT 5 V면 약 5.6 V 미만).
+source: "TPS54331 데이터시트 SLVS839H (2023-10): p.1 특징, §6.1 p.4, §6.3 p.4, §6.4 p.5, §6.5 p.5, §6.6 p.6, §7.3.5 p.11"

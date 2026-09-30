@@ -1,0 +1,18 @@
+* LC output filter load-step test (FAE Agent template)
+* Worst-case approximation with no control loop: ideal source -> L -> output (C + ESR) -> load step.
+* $vout_v, $l_h, $c_f, $esr_ohm, $rbase_ohm, $istep_a are filled in by fae_agent/tools/spice.py
+V1 in 0 DC $vout_v
+L1 in out $l_h
+C1 out cx $c_f
+R1 cx 0 $esr_ohm
+Rbase out 0 $rbase_ohm
+I1 out 0 PULSE(0 $istep_a 100u 1u 1u 1 2)
+.tran 0.2u 600u
+.meas tran vmin MIN v(out) FROM=100u TO=600u
+.meas tran vmax MAX v(out) FROM=100u TO=600u
+* 화면에 파형을 그리려고 v(out)을 wave.txt에 저장한다 (spice.py가 읽어 간다)
+.control
+run
+wrdata wave.txt v(out)
+.endc
+.end

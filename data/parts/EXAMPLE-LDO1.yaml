@@ -1,0 +1,14 @@
+# 가상의 예시 부품입니다. 실제 부품은 데이터시트를 보고 채우세요.
+part_number: EXAMPLE-LDO1
+type: ldo
+description: 가상의 500 mA LDO, SOT-23 패키지 (예시 값)
+abs_max:
+  vin_v: 6.5
+recommended:
+  vin_min_v: 1.6
+  vin_max_v: 6.0
+  iout_max_a: 0.5
+  tj_max_c: 125
+thermal:
+  theta_ja_c_per_w: 180
+source: 예시 값 (실제 부품은 데이터시트 이름·페이지)

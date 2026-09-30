@@ -1,0 +1,39 @@
+# TI TPS7A02 나노전력(IQ 25 nA) 200 mA LDO. 값은 데이터시트에서 직접 옮김 (SBVS277C, 2022-09). 이 문서의 절 번호는 6.x.
+part_number: TPS7A02
+type: ldo
+description: 25 nA 초저 IQ, 200 mA LDO (고정 출력 0.8–5.0 V, 입력 1.5–6.0 V)
+abs_max:                       # §6.1 p.4
+  vin_v: 6.5                   # VEN도 6.5 V. VOUT은 VIN+0.3 V 또는 5.5 V 중 작은 값
+  tj_max_c: 150
+recommended:                   # §6.3 p.5
+  vin_min_v: 1.5
+  vin_max_v: 6.0
+  iout_max_a: 0.2
+  tj_max_c: 125
+  cout_min_f: 1.0e-6           # 표는 1 µF, 각주(1): 안정성에 유효 용량 0.5 µF 이상 필요
+  cout_max_f: 22.0e-6          # 각주(2): 22 µF는 안정성이 유지되는 최대 '디레이팅 후' 용량
+  cin_min_f: 1.0e-6
+typical:
+  iq_a: 25.0e-9                # §6.5 p.6: 무부하 접지 전류 전형 25 nA (25 °C, 최대 46 nA, −40~85 °C 최대 60 nA)
+  shutdown_current_a: 3.0e-9   # §6.5 p.6: EN=0 V, 25 °C 전형 3 nA (최대 10 nA)
+  dropout_v_max_3v3_to_5v: 0.31   # §6.5 p.6: IOUT=200 mA, 3.3 V ≤ VOUT ≤ 5.0 V, TJ −40~125 °C 최대 310 mV (2.5–3.3 V는 360 mV, 1.8–2.5 V는 450 mV)
+  current_limit_a: 0.45        # §6.5 p.6: ICL 최소 0.24 / 전형 0.45 / 최대 0.75
+  short_circuit_a: 0.065       # §6.5 p.6: ISC (VOUT=0 V) 전형 65 mA
+  start_up_time_s: 0.00075     # §6.6 p.7: 1.5 V < VOUT ≤ 3.0 V 전형 750 µs (최대 1200 µs). 3.0–5.0 V는 전형 1200 µs
+  uvlo_rising_v: 1.3           # §6.5 p.6: VIN 상승 전형 (1.23–1.47 V), 하강 전형 1.12 V, 히스테리시스 180 mV
+  en_high_v_min: 1.1           # §6.5 p.7: EN을 이 값 이상으로 올려야 켜짐
+  en_low_v_max: 0.3
+  psrr_db_1khz: 55             # §6.5 p.6: 1 kHz, IOUT=30 mA
+  noise_uvrms: 130             # §6.5 p.6: 10 Hz~100 kHz, VOUT=0.8 V, IOUT=30 mA
+  thermal_shutdown_c: 170      # §6.5 p.7: 상승 170 °C, 하강(복귀) 145 °C
+thermal:                       # §6.4 p.5 — 기본은 SOT-23 (DBV)
+  theta_ja_c_per_w: 181.9
+  packages_theta_ja_c_per_w:
+    DBV_SOT23_5: 181.9
+    DQN_X2SON: 179.1
+    YCH_DSBGA: 201.1
+notes:
+  - 스마트 EN: EN이 LOW(0.3 V 이하)일 때 EN 핀에 약 500 kΩ 풀다운이 붙고, 꺼진 상태에서 출력은 60 Ω으로 방전된다 (§6.5 p.7).
+  - 출력 커패시터 ESR 조건은 권장 동작 표에 없다. 안정성 조건은 유효 용량(0.5 µF 이상, 디레이팅 후 22 µF 이하)뿐이다 (§6.3 각주).
+  - 접지 전류 대 출력 전류 비(IGND/IOUT)는 전형 값으로 5 µA~1 mA 구간 1 %, 1~100 mA 구간 0.25 %, 100 mA 이상 0.15 %다 (25 °C, §6.5 p.6).
+source: "TPS7A02 데이터시트 SBVS277C (2022-09): §6.1 p.4, §6.3 p.5, §6.4 p.5, §6.5 p.6–7, §6.6 p.7"

@@ -1,0 +1,33 @@
+# TI TPS7A20 300 mA 초저잡음 LDO. 값은 데이터시트에서 직접 옮김 (SBVS338H, 2024-07).
+part_number: TPS7A20
+type: ldo
+description: 300 mA, 초저잡음, 저 IQ, 고 PSRR LDO (입력 1.6–6.0 V, 출력 0.8–5.5 V)
+abs_max:                       # §5.1 p.5
+  vin_v: 6.5                   # VOUT은 6.5 V 또는 VIN+0.3 V 중 작은 값
+recommended:                   # §5.3 p.5
+  vin_min_v: 1.6
+  vin_max_v: 6.0
+  iout_max_a: 0.3
+  tj_max_c: 125
+  cout_min_f: 1.0e-6           # 표는 1 µF, 각주(3)은 유효 용량 0.47 µF 이상이 안정성에 필요
+  cout_max_f: 200.0e-6
+  esr_max_ohm: 0.1             # COUT ESR 100 mΩ 이하
+typical:
+  dropout_v_max: 0.145         # p.1: 300 mA, VOUT=3.3 V, DBV 패키지 최대 145 mV (다른 패키지 140 mV)
+  current_limit_a: 0.52        # §5.5 p.7: ICL 최소 0.36 / 전형 0.52 / 최대 0.73–0.77
+  short_circuit_a: 0.16        # §5.5 p.7: ISC (VOUT=0 V), 설계 시뮬레이션 값
+  soft_start_s: 0.00075        # §5.6 p.7: 시동 시간 전형 750 µs, 최대 1150 µs
+  uvlo_rising_v: 1.35          # §5.5 p.7: VIN 상승 시 전형
+  iq_a: 6.5e-6                 # p.1: IQ 6.5 µA
+  thermal_shutdown_c: 165      # §5.5 p.7: TJ 상승 165 °C, 하강 140 °C
+thermal:                       # §5.4 p.6 — 기본은 SOT-23 (DBV). 그 밖의 패키지는 packages 참고
+  theta_ja_c_per_w: 187.1
+  packages_theta_ja_c_per_w:
+    DBV_SOT23_5: 187.1
+    DQN_X2SON: 166.1
+    YCJ_DSBGA: 199.6
+    YCK_DSBGA: 201.4
+notes:
+  - 스마트 EN 회로: EN 핀을 띄워 두어도(플로팅) 내부 풀다운으로 LDO가 꺼진 상태를 유지한다 (p.1). EN을 VEN(HI) 0.9 V 이상으로 올려야 켜진다 (§5.5 p.7).
+  - 입력 커패시터는 안정성에 필수는 아니지만, 전원 임피던스 때문에 링잉·발진이 생길 수 있어 유효 0.47 µF 이상을 권장 (§5.3 각주 2).
+source: "TPS7A20 데이터시트 SBVS338H (2024-07): p.1 특징, §5.1 p.5, §5.3 p.5, §5.4 p.6, §5.5–5.6 p.7"

@@ -1,0 +1,29 @@
+* Non-inverting amplifier with a single-pole op-amp model (FAE Agent template)
+* Small-signal frequency response only (.ac): no slew rate, output swing limit or offset. Other parts ideal.
+* $rf_ohm (Rf), $rg_ohm (Rg), $gbw_hz (gain-bandwidth), $a0 (open-loop DC gain, linear), $freq_hz (frequency to read)
+* Op-amp = gain a0 followed by one pole at gbw/a0 (unity-gain frequency = gbw). Filled in by fae_agent/tools/spice.py
+.param a0=$a0
+.param gbw=$gbw_hz
+.param rf=$rf_ohm
+.param rg=$rg_ohm
+.param cp={a0/(6.283185307*1k*gbw)}
+.param g0_db={20*log10(1+rf/rg)}
+Vin inp 0 DC 0 AC 1
+Eop x 0 inp inn {a0}
+Rp x y 1k
+Cp y 0 {cp}
+Eb out 0 y 0 1
+Rf out inn {rf}
+Rg inn 0 {rg}
+* .meas가 vdb()를 쓰면 저장 목록을 못 만들어 종료 코드 1이 되므로 저장할 신호를 직접 지정한다
+.save v(out)
+.ac dec 20 1 10G
+.meas ac dc_gain_db FIND vdb(out) AT=1
+.meas ac gain_db_at_freq FIND vdb(out) AT=$freq_hz
+.meas ac bw_hz WHEN vdb(out)={g0_db-3.0103} FALL=1
+* 화면에 주파수 응답을 그리려고 vdb(out)을 wave.txt에 저장한다 (주파수, dB 두 열)
+.control
+run
+wrdata wave.txt vdb(out)
+.endc
+.end

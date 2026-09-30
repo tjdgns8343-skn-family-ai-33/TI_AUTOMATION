@@ -1,0 +1,53 @@
+# TI LM358 (원조) 듀얼 범용 연산증폭기. 값은 데이터시트의 LM358·LM358A 표에서 직접 옮김 (SLOS068AB, 2024-10). 이 문서의 절 번호는 5.x.
+part_number: LM358
+type: opamp
+description: 듀얼 범용 연산증폭기, 단전원 3–30 V, GBW 0.7 MHz, 슬루율 0.3 V/µs (입력은 V−까지, 출력은 V+에 못 미침)
+abs_max:                       # §5.1 p.4 — LM358/LM358A 열
+  vs_v: 32                     # 공급 전압 ±16 V 또는 32 V (LM358B/BA는 40 V로 다름)
+  differential_input_v: 32
+  input_voltage_max_v: 32      # 두 입력 모두 −0.3 ~ 32 V
+  tj_max_c: 150
+recommended:                   # §5.3 p.5 — LM358/LM358A 열
+  vs_min_v: 3
+  vs_max_v: 30
+  vcm_high_below_rail_v: 2     # 동상 전압 V− ~ V+ − 2 V (§5.7 p.10: 25 °C에서는 V+ − 1.5 V)
+  ta_min_c: 0
+  ta_max_c: 70                 # LM358/LM358A의 동작 주변 온도는 0~70 °C (LM358B는 −40~85 °C)
+typical:                       # §5.7 p.10 (VS=5 V, TA=25 °C, 채널당)
+  gbw_hz: 0.7e6
+  slew_rate_v_per_us: 0.3      # G=+1
+  open_loop_gain_db: 100       # 전형 100 V/mV(=100 dB), 최소 25 V/mV(=88 dB) (VS=15 V, RL ≥ 2 kΩ)
+  vos_typ_mv: 3
+  vos_max_mv: 7                # LM358, 25 °C. 0~70 °C에서는 최대 9 mV (LM358A는 전형 2, 최대 3 mV)
+  input_bias_current_na: -20   # 전형 −20 nA, 최대 −250 nA (0~70 °C 최대 −500 nA). 음수는 입력 핀에서 나오는 방향
+  input_offset_current_na: 2   # 전형 2 nA, 최대 50 nA
+  vcm_low_v: 0                 # 동상 입력 범위가 V−(접지)를 포함한다 — 단전원에서 0 V 입력 가능
+  vcm_high_below_rail_v: 1.5   # 25 °C, V+ − 1.5 V까지 (0~70 °C는 V+ − 2 V)
+  output_swing_high_from_rail_v_5v_2k: 1.5   # 최대: VS=5 V, RL ≥ 2 kΩ에서 출력이 V+보다 최대 1.5 V 아래까지만 올라감
+  output_swing_high_from_rail_v_30v_10k: 3   # 전형 2 V, 최대 3 V (VS=30 V, RL ≥ 10 kΩ). RL=2 kΩ이면 최대 4 V
+  output_swing_low_from_rail_mv: 20          # 전형 5 mV, 최대 20 mV (VS=5 V, RL ≤ 10 kΩ) — 출력은 V−에 거의 닿음
+  output_source_ma_min: 20     # §5.7 p.10: 소스 전류 최소 20 mA / 전형 30 mA (VS=15 V, VO=0 V, VID=1 V). 0~70 °C 최소 10 mA
+  output_source_ma_typ: 30
+  output_sink_ma_min: 10       # 싱크 전류 최소 10 mA / 전형 20 mA (VS=15 V, VO=15 V, VID=−1 V). 0~70 °C 최소 5 mA
+  short_circuit_ma: 40         # 전형 ±40 mA (최대 ±60 mA)
+  iq_ua_per_amp_5v: 350        # 채널당 전형 350 µA (최대 600 µA), VS=30 V에서는 전형 500 µA (최대 1000 µA)
+  noise_density_nv_rthz: 40    # 1 kHz
+  psrr_db: 100                 # 전형 100 dB (최소 65 dB)
+  cmrr_db: 80                  # 전형 80 dB (최소 65 dB)
+  channel_separation_db: 120
+thermal:                       # §5.4 p.5 — 채널이 2개라 패키지 열저항은 패키지 전체 기준
+  theta_ja_c_per_w: 124.7      # D(SOIC-8). 나머지: DGK 181.4, P(PDIP) 80.9, PS 116.9, PW 171.7, DDF(SOT-23) 164.3
+  packages_theta_ja_c_per_w:
+    D_SOIC8: 124.7
+    DGK_VSSOP8: 181.4
+    P_PDIP8: 80.9
+    PS_SO8: 116.9
+    PW_TSSOP8: 171.7
+    DDF_SOT23_8: 164.3
+notes:
+  - 이 데이터시트는 LM158/258/358, LM358A, LM358B/BA, LM2904 계열을 함께 다루고 값이 변종마다 다르다. 이 카드는 LM358(원조) 값만 옮겼다. LM358B/BA는 공급 36 V(절대 최대 40 V), 동작 온도 −40~85 °C, 성능이 더 좋다.
+  - 출력 스윙이 레일 투 레일이 아니다: 5 V 전원, 2 kΩ 부하에서 출력이 V+보다 최대 1.5 V 낮은 곳까지만 올라가고 V−에는 거의 닿는다 (§5.7 p.10).
+  - 동상 입력 범위는 V−까지 내려가지만 위쪽은 V+ − 1.5 V(25 °C), 0~70 °C 전체에서는 V+ − 2 V까지다. 입력이 그보다 높으면 출력이 따라가지 않는다 (§5.3 p.5, §5.7 p.10).
+  - (데이터시트 값으로 계산한 추정) GBW 0.7 MHz면 이득 10에서 폐루프 대역폭은 약 70 kHz다. 사인파 출력이 슬루율에 걸리지 않는 최대 주파수는 f ≈ SR / (π × Vpp)이고, 2 Vpp에서 약 48 kHz다.
+  - 입력 바이어스 전류가 −20 nA(최대 −250 nA)로 크다. 높은 임피던스 신호원이나 큰 저항(Rf) 회로에서는 오프셋이 생긴다 (§5.7 p.10).
+source: "LM358 데이터시트 SLOS068AB (2024-10) LM358·LM358A 열: §5.1 p.4, §5.3 p.5, §5.4 p.5, §5.7 p.10"

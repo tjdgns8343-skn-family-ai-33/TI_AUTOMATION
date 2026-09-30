@@ -1,0 +1,32 @@
+# TI LM2596 150 kHz 3 A 강압(벅) 레귤레이터. 값은 데이터시트에서 직접 옮김 (SNVS124G, 2023-03).
+part_number: LM2596
+type: buck
+description: SIMPLE SWITCHER 150 kHz 3 A 강압 레귤레이터 (입력 최대 40 V, 가변형 출력 1.2–37 V)
+abs_max:                       # §7.1 p.5
+  vin_v: 45
+recommended:                   # §7.3 p.5 (동작 조건)
+  vin_min_v: 4.5
+  vin_max_v: 40
+  iout_max_a: 3.0
+  tj_max_c: 125                # 동작 온도 −40~125 °C. 절대 최대 접합 온도는 150 °C (§7.1)
+typical:
+  vref_v: 1.23                 # §7.8 p.6: 가변형 피드백 전압 (1.193–1.267 V, 25 °C)
+  fsw_hz: 150000               # §7.9 p.7: 발진 주파수 전형 150 kHz (127–173 kHz)
+  efficiency: 0.73             # §7.8 p.6: 가변형 VIN=12 V, VOUT=3 V, 3 A. (5 V 고정형 80 %, 12 V 고정형 90 % — 버전마다 다름)
+  current_limit_a: 4.5         # §7.9 p.7: 피크 전류 제한 전형 4.5 A (3.6–6.9 A, 25 °C)
+  saturation_v: 1.16           # §7.9 p.7: 3 A에서 스위치 포화 전압 전형
+  quiescent_current_a: 0.005   # §7.9 p.7: 동작 시 IQ 전형 5 mA
+  standby_current_a: 80.0e-6   # §7.9 p.7: 대기 전류 전형 80 µA
+  on_off_threshold_v: 1.3      # §7.9 p.7: ON/OFF 핀 문턱 전형 1.3 V
+thermal:                       # §7.4 p.5–6 — 구리 면적에 따라 크게 달라짐
+  theta_ja_c_per_w: 50         # TO-263(KTW), 탭을 0.5 in² 1 oz 구리에 납땜 (주석 5)
+  theta_ja_by_copper_c_per_w:
+    KTW_TO263_0.5in2: 50
+    KTW_TO263_2.5in2: 30       # 주석 6
+    KTW_TO263_double_sided_3in2_plus_16in2: 20   # 주석 7
+    NDZ_TO220_1in2_no_heatsink: 50               # 주석 4
+notes:
+  - 내부 주파수 보상이 들어 있고 발진 주파수는 고정이라 외부 보상 부품이 없다 (p.1).
+  - ON/OFF 핀은 LOW일 때 출력이 켜지고 HIGH(약 2 V 이상)일 때 꺼진다 — 인에이블이 아니라 셧다운 핀이다 (§7.9 p.7).
+  - 피크 전류 제한이 걸리면 스위칭 주파수가 낮아진다 (§7.9 각주 3).
+source: "LM2596 데이터시트 SNVS124G (2023-03): p.1 특징, §7.1 p.5, §7.3 p.5, §7.4 p.5–6, §7.8 p.6, §7.9 p.7"

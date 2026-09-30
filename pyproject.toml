@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fae-agent"
+version = "0.1.0"
+description = "반도체 고객 컴플레인 처리 멀티에이전트 시스템 (개인 프로젝트)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=1.0",
+    "langchain[mcp]>=1.0",  # MCPAdapter는 2026년 9월에 langchain 본체로 이동 (TOOL_MODE=mcp에서만 사용)
+    "langchain-openai>=1.0",
+    "mcp",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
+    "scikit-learn>=1.4",
+    "pdfplumber>=0.11",
+    "streamlit>=1.36",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+anthropic = ["langchain-anthropic>=1.0"]
+
+[project.scripts]
+fae = "fae_agent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["fae_agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

@@ -1,0 +1,4 @@
+고객: 가상센서
+제목: EXAMPLE-SENSOR1 I2C NACK
+---
+EXAMPLE-SENSOR1과 I2C 통신 중 가끔 NACK이 납니다. VDD 3.3V, 풀업 10k, 버스 커패시턴스 약 300pF입니다.
