@@ -6,6 +6,9 @@ python -m fae_agent.cli run --file data/samples/complaint_buck_oscillation.txt
 python -m fae_agent.cli run --file data/samples/complaint_buck_oscillation.txt --decision a   # 입력 없이 승인
 python -m fae_agent.cli eval                 # 평가셋 전체 실행 (자동 승인)
 python -m fae_agent.cli tickets               # 최근 티켓 목록
+
+FAE_MODE=llm이면 run·eval은 OpenAI 요금이 나가므로 --allow-llm을 붙여야 실행됩니다 (안 붙이면 거부).
+요금 없이 확인하려면 환경변수 FAE_MODE=mock으로 실행하세요 (cmd: set FAE_MODE=mock, PowerShell: $env:FAE_MODE="mock").
 """
 
 from __future__ import annotations
@@ -23,6 +26,13 @@ from typing import Any
 
 from .config import PROJECT_ROOT, get_settings
 from .schemas import Complaint
+
+LLM_COST_COMMANDS = ("run", "eval")  # LLM 모드에서 모델을 부르는(요금이 나가는) 명령
+LLM_REFUSAL = (
+    "FAE_MODE=llm이라서 '{command}' 명령은 LLM(OpenAI) 요금이 나갑니다. 실행하지 않았습니다.\n"
+    "요금이 나가도 되면 --allow-llm을 붙여 다시 실행하세요.\n"
+    'FAE_MODE=mock으로 실행하면 요금이 나가지 않습니다 (cmd: set FAE_MODE=mock, PowerShell: $env:FAE_MODE="mock").'
+)
 
 
 def _utf8_console() -> None:
@@ -87,6 +97,7 @@ def cmd_check(_: argparse.Namespace) -> int:
     print(f".env: {'있음' if (PROJECT_ROOT / '.env').exists() else '없음 (.env.example을 복사하세요)'}")
     print(f"FAE_MODE={settings.fae_mode}  TOOL_MODE={settings.tool_mode}  AUTO_APPROVE={settings.auto_approve}")
     if settings.fae_mode == "llm":
+        print("  [주의] llm 모드: run·eval은 요금이 나가므로 --allow-llm을 붙여야 실행됩니다")
         provider = settings.llm_model.split(":", 1)[0]
         key_name = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}.get(provider)
         has_key = bool(key_name and os.environ.get(key_name))
@@ -275,15 +286,20 @@ def main(argv: list[str] | None = None) -> int:
         "Claude Code처럼 키보드 입력을 받을 수 없는 곳에서 씁니다",
     )
     run.add_argument("--comment", default="", help="--decision의 r(수정 요청)에 쓸 내용")
+    run.add_argument("--allow-llm", action="store_true", help="FAE_MODE=llm에서 요금이 나가는 것을 허용 (없으면 거부)")
     run.set_defaults(func=cmd_run)
     ev = sub.add_parser("eval", help="평가셋 실행")
     ev.add_argument("--cases", help="평가셋 JSONL (기본: data/eval/eval_cases.jsonl)")
+    ev.add_argument("--allow-llm", action="store_true", help="FAE_MODE=llm에서 요금이 나가는 것을 허용 (없으면 거부)")
     ev.set_defaults(func=cmd_eval)
     tk = sub.add_parser("tickets", help="티켓 조회")
     tk.add_argument("--id", help="티켓 ID")
     tk.add_argument("--limit", type=int, default=20)
     tk.set_defaults(func=cmd_tickets)
     args = parser.parse_args(argv)
+    if args.command in LLM_COST_COMMANDS and not args.allow_llm and get_settings().fae_mode == "llm":
+        print(LLM_REFUSAL.format(command=args.command), file=sys.stderr)
+        return 2
     return args.func(args)
 
 
