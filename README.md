@@ -61,7 +61,7 @@ flowchart LR
 | 접수·분류 | 부품 번호·증상·동작 조건 추출, 경로 결정 (기술→FAE, 불량 의심→반품, 배송→고객지원) | tickets |
 | 근거 검색 | 데이터시트 조각, 과거 사례, 부품 스펙 카드 검색 | kb |
 | 원인 가설 | 가설 3개 + 해결책 + 테스트 계획 | kb |
-| 계산·시뮬레이션 | 설계 공식 11종, ngspice 회로 2개(부하 스텝, 연산증폭기 주파수 응답)로 **증상 재현(reproduce)**과 **해결책 확인(verify)** | calc, spice |
+| 계산·시뮬레이션 | 설계 공식 11종, ngspice 회로 3개(부하 스텝, 연산증폭기 주파수 응답, 벅 스위칭 리플)로 **증상 재현(reproduce)**과 **해결책 확인(verify)** | calc, spice |
 | 검수 | 근거 인용, 테스트의 질(자기 참조·무의미한 기대 범위·부품에 안 맞는 도구), 정격 초과, 계산과 시뮬레이션 교차 확인. 문제가 있으면 원인 가설로 되돌림 | — |
 | 정격 점검 | 품질 클레임의 고객 값을 부품 카드의 한계와 수치 비교 | kb |
 | CPR 점검 | 반품 필수 자료(A-B-A 교차 검증, 마킹 사진, 회로도 등), 8D 초안 | — |
@@ -104,7 +104,8 @@ python -m fae_agent.cli run --file data/samples/complaint_ldo_overheating.txt --
 
 - Windows에서는 `.env` 없이도 동작하고, 설정을 바꾸려면 `copy .env.example .env` 후 편집합니다.
 - `run`은 사람 승인 단계에서 멈추고 승인(a) / 수정 요청(r) / 반려(x)를 묻습니다. 입력을 줄 수 없는 곳에서는 `--decision a`, `--decision r,a --comment "..."`, `--decision x`를 붙입니다.
-- 테스트는 코어 104개입니다. ngspice가 없으면 시뮬레이션 관련 9개는 건너뛰고 나머지 95개가 통과합니다. 백엔드 테스트 15개는 `cd backend && python -m pytest`로 실행합니다 (Redis·Postgres 없이).
+- 테스트는 코어 146개입니다. ngspice가 없으면 시뮬레이션 관련 19개는 건너뛰고 나머지 127개가 통과합니다. 백엔드 테스트 15개는 `cd backend && python -m pytest`로 실행합니다 (Redis·Postgres 없이).
+- LLM 모드(`FAE_MODE=llm`)에서는 `run`·`eval`이 모델을 불러 요금이 나가므로 `--allow-llm`을 붙여야 실행됩니다 (안 붙이면 거부).
 - 다른 명령: `python -m fae_agent.cli eval`(평가셋 전체를 자동 승인으로 실행), `ingest`(문서 색인 다시 만들기), `tickets`(처리한 티켓 목록).
 - Streamlit 개발 화면: `streamlit run app/streamlit_app.py`
 
@@ -149,9 +150,9 @@ fae_agent/            파이썬 패키지
 backend/              Django + DRF API, Celery 작업자, 티켓·실행·승인 모델, 테스트
 frontend/             React(Vite, TypeScript) 화면: 진행 단계, 승인, 시뮬레이션 파형·주파수 응답 차트
 docker/, docker-compose*.yml   이미지와 전체 스택 (llm 모드는 별도 덮어쓰기 파일)
-circuits/             ngspice 회로 템플릿 (lc_load_step, opamp_ac)
+circuits/             ngspice 회로 템플릿 (lc_load_step, opamp_ac, buck_switch)
 data/parts/           부품 스펙 카드 (실제 6종 + 가상 3종, 데이터시트 쪽수 표기)
-data/eval/            평가 문의 51건 (실제 부품 44 + 가상 부품 7, 정답과 데이터시트 근거 포함)
+data/eval/            평가 문의 57건 (실제 부품 50 + 가상 부품 7, 정답과 데이터시트 근거 포함). 벅 스위칭 5건은 측정하지 않았고 TPS62130A 복합 문의 1건(D-1)은 1회 측정
 data/samples/         데모 문의와 가상 문서
 docs/                 설계 문서, 검증·진행 보고서, docs/feasibility/ 실행기와 원자료
 tests/                코어 pytest
@@ -170,12 +171,12 @@ tests/                코어 pytest
 - [x] LangGraph 흐름, 검수·재분석 규칙, mock·llm 모드, MCP 서버
 - [x] 실제 TI 부품 6종 카드와 평가 문의 51건, 측정과 보고서
 - [x] 웹 앱 (Django + React + Docker), 사람 승인, 티켓 저장, nginx 비밀번호와 접수 제한
-- [x] 계산과 ngspice 시뮬레이션 교차 확인 (연산증폭기)
+- [x] 계산과 ngspice 시뮬레이션 교차 확인 (연산증폭기, 벅 리플과 연속/불연속 전도 판정)
 - [ ] AWS 배포 (EC2 한 대 + Docker Compose, HTTPS)
-- [ ] 검수 개선: 값 대조 방향 규칙, 슬루율 가설 강제, 무의미한 기대 범위 지적 (일부 구현, 수정 후 재측정 전)
+- [ ] 검수 개선: 값 대조 방향 규칙, 슬루율 가설 강제, 무의미한 기대 범위 지적, 전류 제한 여유와 잰 리플의 설계 점검 (구현, 수정 후 재측정 전)
 - [ ] 손상(damage) 문의의 서지·절대 최대 비교, 팀원 블라인드 문의 평가
 - [ ] 검색을 임베딩 + 벡터 DB로 교체, 회로 템플릿 추가 (벅 출력 리플 등)
 
 ## 문서
 
-[아키텍처와 검수 규칙](docs/architecture.md) · [범위](docs/scope.md) · [데이터 이용 원칙](docs/data_policy.md) · [기획안](docs/proposal.md) · [가능성 검증 보고서](docs/feasibility_report.md) · [진행 보고서](docs/progress_report_2026-09-30.md)
+[아키텍처와 검수 규칙](docs/architecture.md) · [범위](docs/scope.md) · [데이터 이용 원칙](docs/data_policy.md) · [기획안](docs/proposal.md) · [가능성 검증 보고서](docs/feasibility_report.md) · [진행 보고서](docs/progress_report_2026-09-30.md) · [개선 로드맵](docs/roadmap.md)

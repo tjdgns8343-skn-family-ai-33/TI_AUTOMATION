@@ -1,0 +1,34 @@
+* Non-synchronous buck converter, open loop, fixed duty (FAE Agent template)
+* Ideal switch + catch diode + inductor (DCR) + output capacitor (ESR) + resistive load. No control loop, no Eco-mode.
+* spice.py searches the duty ($ton_s) with the output pinned to the target, then runs once more unpinned to read the ripple.
+* $vin_v, $vout_v, $iout_a, $l_h, $cout_f, $esr_ohm, $fsw_hz, $rds_ohm, $dcr_ohm, $vd_v and the values derived from them
+* ($ton_s, $period_s, $step_s, $tstart_s, $tstop_s, $rload_ohm, $il0_a, and the pin lines below) are filled in by spice.py
+.param is_d={1/exp($vd_v/0.02585)}
+V1 in 0 DC $vin_v
+S1 in sw ctrl 0 SWMOD
+V2 ctrl 0 PULSE(0 1 0 1n 1n $ton_s $period_s)
+.model SWMOD SW(Ron=$rds_ohm Roff=1Meg Vt=0.5 Vh=0.1)
+D1 0 sw DMOD
+.model DMOD D(Is={is_d} N=1)
+L1 sw lx $l_h ic=$il0_a
+Rdcr lx out $dcr_ohm
+C1 out cx $cout_f ic=$vout_v
+Resr cx 0 $esr_ohm
+Rload out 0 $rload_ohm
+* 듀티를 찾는 1단계에서는 출력을 목표 전압 전원에 낮은 저항으로 묶고(고정), 2단계에서는 이 줄이 주석이 된다
+$pin_block
+* 정상 상태에서 시작하도록 초기값을 준다 (인덕터 전류 $il0_a는 스위치가 켜지는 순간의 최소값)
+.ic v(out)=$vout_v v(cx)=0
+.tran $step_s $tstop_s $tstart_s $step_s uic
+.save v(out) i(L1)
+.meas tran vout_avg AVG v(out) FROM=$tstart_s TO=$tstop_s
+.meas tran vout_max MAX v(out) FROM=$tstart_s TO=$tstop_s
+.meas tran vout_min MIN v(out) FROM=$tstart_s TO=$tstop_s
+.meas tran il_avg AVG i(L1) FROM=$tstart_s TO=$tstop_s
+.meas tran il_max MAX i(L1) FROM=$tstart_s TO=$tstop_s
+.meas tran il_min MIN i(L1) FROM=$tstart_s TO=$tstop_s
+.control
+run
+wrdata wave.txt v(out)
+.endc
+.end

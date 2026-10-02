@@ -26,6 +26,17 @@ RESPONSE_POINTS = 160  # 주파수 응답 점 개수 (로그 간격으로 다시
 # 회로 템플릿에서 값을 주지 않으면 쓰는 기본값
 CIRCUIT_DEFAULTS: dict[str, dict[str, float]] = {"opamp_ac": {"a0": 1e5}}  # 개방 이득 100 dB
 
+# buck_switch: 고객이 주지 않는 값의 기본값(부품 카드 값이 아니라 일반적인 값. 결과의 assumed에 그대로 적는다)
+BUCK_DEFAULTS = {"rds_ohm": 0.1, "dcr_ohm": 0.02, "vd_v": 0.4}  # 스위치 저항, 인덕터 직류 저항, 캐치 다이오드 순방향 전압
+BUCK_REQUIRED = ("vin_v", "vout_v", "iout_a", "l_h", "fsw_hz", "cout_f", "esr_ohm")
+BUCK_MEAS_CYCLES = 10  # 정상 상태에서 재는 마지막 스위칭 주기 수 (화면에 그리는 파형도 이 구간)
+BUCK_STEPS_PER_CYCLE = 50  # 한 주기당 최대 시간 간격 수
+BUCK_CYCLE_LIMITS = (150, 2500)  # 시뮬레이션 길이(주기 수)의 하한·상한
+BUCK_CURRENT_TOLERANCE = 0.005  # 인덕터 평균 전류가 부하 전류에서 벗어나도 되는 비율 (듀티 탐색 종료 기준)
+BUCK_VOUT_TOLERANCE = 0.01  # 마지막 실행에서 평균 출력이 목표에서 벗어나도 되는 비율 (넘으면 수렴하지 않은 것으로 표시)
+BUCK_MAX_RUNS = 8  # 듀티 탐색의 ngspice 실행 횟수 상한
+BUCK_PIN_OHM = 1e-4  # 출력을 목표 전압 전원에 묶는 저항
+
 _AC_DECL = re.compile(r"^\s*\.ac\b", re.IGNORECASE | re.MULTILINE)
 _MEAS_DECL = re.compile(r"^\s*\.meas(?:ure)?\s+\w+\s+(\w+)", re.IGNORECASE | re.MULTILINE)
 _MEAS_VALUE = re.compile(r"^\s*([A-Za-z_]\w*)\s*=\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)", re.MULTILINE)
@@ -184,7 +195,8 @@ def render_circuit(circuit: str, params: dict[str, float]) -> str:
     path = get_settings().circuits_dir / f"{circuit}.cir"
     if not path.exists():
         raise FileNotFoundError(f"회로 템플릿이 없습니다: {path}")
-    values = {k: f"{float(v):.6g}" for k, v in {**CIRCUIT_DEFAULTS.get(circuit, {}), **params}.items()}
+    merged = {**CIRCUIT_DEFAULTS.get(circuit, {}), **params}
+    values = {k: v if isinstance(v, str) else f"{float(v):.6g}" for k, v in merged.items()}  # 문자열은 그대로 넣는다
     return Template(path.read_text(encoding="utf-8")).substitute(values)
 
 
@@ -214,8 +226,144 @@ def _derived(params: dict[str, float], measures: dict[str, float]) -> dict[str, 
     return derived
 
 
+def _buck_inputs(params: dict[str, float]) -> dict[str, float]:
+    """buck_switch 입력을 검사하고 기본값을 채웁니다. 잘못된 값이면 ValueError (검수가 테스트 오류로 되돌린다)."""
+    missing = [k for k in BUCK_REQUIRED if k not in params]
+    if missing:
+        raise ValueError(f"buck_switch에 필요한 값이 없습니다: {', '.join(missing)}")
+    p = {**BUCK_DEFAULTS, **{k: float(v) for k, v in params.items()}}
+    for key in ("vin_v", "vout_v", "iout_a", "l_h", "fsw_hz", "cout_f"):
+        if p[key] <= 0:
+            raise ValueError(f"{key}는 0보다 커야 합니다 (받은 값 {p[key]:g}).")
+    if p["vout_v"] >= p["vin_v"]:
+        raise ValueError("벅 컨버터는 입력 전압이 출력 전압보다 커야 합니다.")
+    for key in ("esr_ohm", "rds_ohm", "dcr_ohm"):
+        p[key] = max(p[key], 1e-6)  # ngspice는 0 Ω 저항을 받지 않는다
+    p["vd_v"] = max(p["vd_v"], 0.01)
+    return p
+
+
+def _buck_initial_duty(p: dict[str, float]) -> float:
+    """듀티의 첫 추정. 연속 전도(CCM)는 손실을 넣은 식, 부하가 가벼워 불연속(DCM)이면 DCM 식을 쓴다."""
+    vin, vout, iout, vd = p["vin_v"], p["vout_v"], p["iout_a"], p["vd_v"]
+    duty = (vout + iout * p["dcr_ohm"] + vd) / (vin - iout * p["rds_ohm"] + vd)
+    ripple_a = (vout + vd) * (1 - duty) / (p["l_h"] * p["fsw_hz"])
+    if iout < ripple_a / 2:
+        duty = math.sqrt(2 * p["l_h"] * p["fsw_hz"] * iout * (vout + vd) / ((vin - vout) * (vin + vd)))
+    return min(max(duty, 0.01), 0.99)
+
+
+def _buck_cycles(p: dict[str, float], duty: float, pinned: bool) -> int:
+    """시뮬레이션 길이(주기 수): 정착 속도의 7배 시간. 출력 고정이면 인덕터 전류(L/R), 아니면 출력 필터의 감쇠."""
+    r_series = p["rds_ohm"] * duty + p["dcr_ohm"]
+    if pinned:
+        rate = r_series / p["l_h"]
+    else:
+        rate = 1 / (2 * (p["vout_v"] / p["iout_a"]) * p["cout_f"]) + (r_series + p["esr_ohm"]) / (2 * p["l_h"])
+    low, high = BUCK_CYCLE_LIMITS
+    return min(max(math.ceil(7 * p["fsw_hz"] / rate), low), high)
+
+
+def _buck_run_once(p: dict[str, float], duty: float, cycles: int, pinned: bool, il0_a: float | None = None) -> dict[str, Any]:
+    """한 번 실행. pinned면 출력 전압을 전원으로 고정해(무한대 커패시터) 인덕터 전류만 빠르게 정착시킨다."""
+    period = 1 / p["fsw_hz"]
+    ripple_est = (p["vout_v"] + p["vd_v"]) * (1 - duty) / (p["l_h"] * p["fsw_hz"])
+    tstop = cycles * period
+    pin_lines = [f"Vp vp 0 DC {p['vout_v']:.6g}", f"Rpin out vp {BUCK_PIN_OHM:g}"] if pinned else ["* 출력 고정 없음"]
+    values = {
+        **p,
+        "ton_s": duty * period,
+        "period_s": period,
+        "step_s": period / BUCK_STEPS_PER_CYCLE,
+        "tstart_s": tstop - BUCK_MEAS_CYCLES * period,
+        "tstop_s": tstop,
+        "rload_ohm": p["vout_v"] / p["iout_a"],
+        "pin_block": "\n".join(pin_lines),
+        "il0_a": max(p["iout_a"] - ripple_est / 2, 0.0) if il0_a is None else il0_a,  # 정상 상태의 최소 전류
+    }
+    return run_netlist(render_circuit("buck_switch", values))
+
+
+def _buck_next_duty(p: dict[str, float], history: list[tuple[float, float, float, bool]]) -> float:
+    """다음 듀티. 기준은 인덕터 평균 전류 − 부하 전류 (출력을 고정했으므로 0이면 출력 커패시터 전하가 균형이다)."""
+    duty, error, il_avg, dcm = history[-1]
+    if len(history) >= 2 and history[-1][1] != history[-2][1]:
+        (d1, e1), (d2, e2) = history[-2][:2], history[-1][:2]
+        nxt = d2 - e2 * (d2 - d1) / (e2 - e1)
+    elif dcm:
+        nxt = duty * math.sqrt(p["iout_a"] / max(il_avg, 1e-9))  # 불연속 모드의 평균 전류는 듀티의 제곱에 비례
+    else:  # 연속 모드: 듀티 1당 평균 전류는 (입력 전압 + 다이오드 전압) / 직렬 저항만큼 변한다
+        nxt = duty - error * (p["rds_ohm"] * duty + p["dcr_ohm"]) / (p["vin_v"] + p["vd_v"])
+    return min(max(nxt, 0.01), 0.99)
+
+
+def run_buck_switch(params: dict[str, float]) -> dict[str, Any]:
+    """벅 컨버터(비동기, 개루프)의 스위칭 동작을 시뮬레이션해 정상 상태의 출력 리플과 인덕터 전류를 구합니다.
+
+    1단계: 출력 전압을 목표값으로 고정하고 인덕터 평균 전류가 부하 전류와 같아지는 듀티를 찾는다 (ngspice 여러 번).
+    2단계: 그 듀티로 출력 커패시터와 부하를 넣어 한 번 더 돌려 출력 리플을 잰다. 부하가 가벼우면 불연속 전도(DCM)가
+    되고 연속 전도 계산식(calc.buck_ripple_estimate)이 맞지 않는다. 제어 루프와 Eco-mode는 모델에 없다.
+    """
+    p = _buck_inputs(params)
+    duty = _buck_initial_duty(p)
+    history: list[tuple[float, float, float, bool]] = []  # (듀티, 평균 전류 − 부하 전류, 평균 전류, 불연속 여부)
+    pinned: dict[str, Any] = {}
+    runs = 0
+    for _ in range(BUCK_MAX_RUNS):
+        pinned = _buck_run_once(p, duty, _buck_cycles(p, duty, True), pinned=True)
+        runs += 1
+        if not pinned.get("ok"):
+            pinned["circuit"] = "buck_switch"
+            return pinned
+        m = pinned["measures"]
+        history.append((duty, m["il_avg"] - p["iout_a"], m["il_avg"], m["il_min"] <= 0.01 * p["iout_a"]))
+        if abs(history[-1][1]) <= BUCK_CURRENT_TOLERANCE * p["iout_a"]:
+            break
+        duty = _buck_next_duty(p, history)
+    duty, current_error = history[-1][0], history[-1][1]
+    result = _buck_run_once(
+        p, duty, _buck_cycles(p, duty, False), pinned=False, il0_a=max(pinned["measures"]["il_min"], 0.0)
+    )
+    runs += 1
+    if not result.get("ok"):
+        result["circuit"] = "buck_switch"
+        return result
+    m = result["measures"]
+    ripple = m["vout_max"] - m["vout_min"]
+    delta_il = m["il_max"] - m["il_min"]
+    vout_error = (m["vout_avg"] - p["vout_v"]) / p["vout_v"]
+    result.update(
+        {
+            "circuit": "buck_switch",
+            "duty": duty,
+            "on_time_s": duty / p["fsw_hz"],
+            "vout_avg_v": m["vout_avg"],
+            "vout_error_pct": vout_error * 100,
+            "converged": abs(current_error) <= BUCK_CURRENT_TOLERANCE * p["iout_a"]
+            and abs(vout_error) <= BUCK_VOUT_TOLERANCE,
+            "runs": runs,
+            "ripple_v": ripple,
+            "ripple_pct": ripple / p["vout_v"] * 100,
+            "delta_il_a": delta_il,
+            "il_min_a": m["il_min"],
+            "il_max_a": m["il_max"],
+            "ripple_ratio": delta_il / p["iout_a"],
+            "dcm": int(m["il_min"] <= 0.01 * p["iout_a"]),  # 1이면 인덕터 전류가 0까지 내려가는 불연속 전도
+            "assumed": {k: p[k] for k in BUCK_DEFAULTS if k not in params},
+        }
+    )
+    waveform = result.get("waveform")
+    if waveform and waveform["time_us"]:
+        start = waveform["time_us"][0]
+        waveform["time_us"] = [round(t - start, 4) for t in waveform["time_us"]]
+        waveform["ref_v"] = p["vout_v"]
+    return result
+
+
 def run_circuit(circuit: str, params: dict[str, float]) -> dict[str, Any]:
     """회로 템플릿 하나를 실행합니다. 결과에 .meas 값과 언더슈트·오버슈트(%) 또는 연산증폭기 이득·대역폭을 담습니다."""
+    if circuit == "buck_switch":
+        return run_buck_switch(params)
     result = run_netlist(render_circuit(circuit, params))
     result["circuit"] = circuit
     result.update(_derived(params, result.get("measures", {})))
@@ -233,16 +381,17 @@ def run_circuit(circuit: str, params: dict[str, float]) -> dict[str, Any]:
 
 
 def compare_circuit(circuit: str, before: dict[str, float], after: dict[str, float]) -> dict[str, Any]:
-    """같은 회로를 변경 전·후 값으로 돌려 언더슈트 개선율(improvement_pct)을 비교합니다."""
+    """같은 회로를 변경 전·후 값으로 돌려 언더슈트(buck_switch는 출력 리플) 개선율(improvement_pct)을 비교합니다."""
     first = run_circuit(circuit, before)
     if first.get("skipped"):
         return {"skipped": True, "error": first.get("error"), "circuit": circuit}
     second = run_circuit(circuit, after)
     result: dict[str, Any] = {"skipped": False, "circuit": circuit, "before": first, "after": second}
-    b, a = first.get("undershoot_v"), second.get("undershoot_v")
+    metric, pct = ("ripple", "after_ripple_pct") if circuit == "buck_switch" else ("undershoot", "after_undershoot_pct")
+    b, a = first.get(f"{metric}_v"), second.get(f"{metric}_v")
     if b and a is not None:
         result["improvement_pct"] = (b - a) / b * 100
-        result["after_undershoot_pct"] = second.get("undershoot_pct")
+        result[pct] = second.get(f"{metric}_pct")
     return result
 
 

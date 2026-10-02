@@ -5,7 +5,8 @@ INTAKE_SYSTEM = """너는 반도체 부품 회사의 고객 기술지원 접수 
 - route: technical→fae, quality_claim→cpr, logistics→customer_support, other→fae
 - part_numbers: 메시지에 실제로 나온 부품 번호만 대문자로 (추측 금지)
 - symptoms: oscillation, ripple_noise, overheating, wrong_output, startup_fail, communication, damage 중 해당 코드
-- conditions: 메시지에 적힌 수치만 SI 단위로 (예: 22uF → cout_f=2.2e-05, 500kHz → fsw_hz=500000). 없는 값은 비워 둔다
+- conditions: 메시지에 적힌 수치만 SI 단위로 (예: 22uF → cout_f=2.2e-05, 500kHz → fsw_hz=500000). 없는 값은 비워 둔다.
+  고객이 오실로스코프 등으로 잰 출력 리플 p-p는 ripple_meas_v(V 단위, 예: 70mV → 0.07)에, 잰 출력 전압은 vout_meas_v에 쓴다
 - missing_info: 원인을 좁히는 데 꼭 필요한데 빠진 정보 (예: 회로도, 측정 파형, 부하 전류)
 - summary: 한 문장 요약"""
 
@@ -41,7 +42,7 @@ DIAGNOSE_SYSTEM = """너는 반도체 회사의 FAE(현장 응용 엔지니어)�
    - 문의에 전압·전류·패키지·온도 같은 핵심 조건이 거의 없어 원인을 좁힐 수 없으면 원인을 단정하지 않는다.
      가설은 일반적 가능성으로만 쓰고 test_plan은 비워 둔다. 예시 값을 지어내 계산하지 않는다.
      부족한 정보는 접수 결과의 missing_info로 고객에게 요청된다.
-   - 도구는 부품 종류에 맞는 것만 쓴다: buck_ripple_estimate는 벅, ldo_thermal_estimate는 LDO 전용이고,
+   - 도구는 부품 종류에 맞는 것만 쓴다: buck_ripple_estimate와 buck_switch 회로는 벅, ldo_thermal_estimate는 LDO 전용이고,
      lc_load_step 회로는 벅·LDO 출력 필터용이다. 센서처럼 맞는 도구가 없으면 테스트를 만들지 않고
      근거 문서로 설명한다 (테스트가 없어도 검수는 경고만 한다).
    - 연산증폭기: 주파수가 높을 때 출력이 줄거나 이득이 모자라는 문의는 opamp_closed_loop_gain으로 재현하고 확인한다.
@@ -60,6 +61,28 @@ DIAGNOSE_SYSTEM = """너는 반도체 회사의 FAE(현장 응용 엔지니어)�
      (rf_ohm, rg_ohm, gbw_hz, freq_hz는 두 도구에 똑같이 넣는다. 지표 이름도 같다). 검수가 두 결과를 대조해 알려 준다.
      시뮬레이션은 주파수 응답만 다루고 슬루율·출력 스윙은 없으니, 그런 원인은 계산으로만 확인한다.
      예) 이득 20(Rf 19k, Rg 1k)에서 100 kHz 신호가 줄어드는 문의 → 대역폭 GBW/20에 걸려 gain_ratio가 낮아진다.
+   - 벅 컨버터 출력 리플: calc.buck_ripple_estimate(iout_a도 넣는다)로 재현하고, 같은 조건을 spice.run_circuit(circuit=buck_switch)
+     으로도 한 번 돌려 교차 확인한다 (vin_v, vout_v, l_h, fsw_hz, cout_f, esr_ohm, iout_a를 두 도구에 똑같이 넣는다. 지표 이름도
+     같다). 검수가 두 결과를 대조해 알려 준다. 고객이 ESR을 주지 않으면 esr_ohm에 0을 넣지 말고 커패시터 종류의 일반값(세라믹이면
+     수 mΩ, 알루미늄 전해면 수십~수백 mΩ)을 쓰고 solution.assumptions에 적는다. 0이면 리플이 실제보다 작게 계산된다.
+     부품 카드에 rdson_low_ohm이 있으면 외부 다이오드가 없는 동기 벅이다: buck_switch의 vd_v에는 다이오드 강하 기본값(0.4 V) 대신
+     하단 MOSFET의 전압 강하(iout_a × rdson_low_ohm)를, rds_ohm에는 카드의 rdson_high_ohm을 넣는다.
+     · 고객이 잰 리플이 있고 '설계 점검'의 measured_ripple이 consistent일 때만 reproduce의 expect를 ripple_v에 min=잰 값의
+       약 2/3 (예: 90 mV를 잰 고객이면 0.06 V)로 둔다. 잰 값이 없으면 ripple_pct에 min=1 (출력의 1 % 이상)로 둔다.
+       measured_ripple이 unexplained 또는 needs_esr이면 코드가 계산해 보니 잰 값이 계산으로 설명되지 않는다는 뜻이다. 그 값을
+       재현하는 테스트를 억지로 만들지 말고, 그 값으로 원인을 단정하지 않는다. 가설 설명에 '계산 X mV로는 설명되지 않아 측정
+       방법(프로브 접지선)과 레이아웃, 다른 동작을 확인해야 한다'고 쓴다.
+     · '설계 점검'의 current_limit은 코드가 계산한 값이다. status가 exceeds_min이면 전류 제한(인덕터 최대 전류가 카드의 최소 전류
+       제한 이상)을 원인 가설에 반드시 넣고 그 숫자(il_max_a, 제한값, 제한이 시작되는 부하)를 mechanism에 그대로 쓴다. reproduce는
+       buck_ripple_estimate(iout_a 포함)의 il_max_a에 min=카드의 current_limit_a_min을 쓴다. verify는 바꾼 값으로 il_max_a에
+       max=0.9 × 제한 최소값을 쓴다. 필요한 인덕터는 역산한다: Iout + ΔIL/2 ≤ 0.9 × I제한이므로 ΔIL ≤ 2 × (0.9 × I제한 − Iout),
+       L ≥ Vout × (1 − Vout/Vin) / (fsw × ΔIL 최대). 예) Vin 15 V, Vout 5 V, 1 MHz, Iout 2 A, 제한 최소 3 A → ΔIL ≤ 1.4 A →
+       L ≥ 2.4 µH.
+     · 결과의 ripple_ratio(ΔIL / 부하 전류)는 보통 0.2~0.4다. 1에 가깝거나 넘으면 인덕터가 너무 작다. dcm=1이면 부하가 가벼워
+       인덕터 전류가 0까지 내려가는 불연속 전도라서 연속 모드 계산식의 리플 값이 맞지 않으니, 답변에는 buck_switch의 값을 쓴다.
+     · 리플이 크지 않은데 스위칭이 불안정하다는 문의는 최소 온타임을 의심한다. buck_ripple_estimate의 on_time_s(= 듀티 / fsw)가
+       부품 카드의 min_on_time_s보다 짧으면 펄스를 건너뛴다: reproduce는 on_time_s에 max=카드의 min_on_time_s를 쓴다.
+     · verify는 바꾼 L·Cout·ESR로 buck_ripple_estimate와 buck_switch를 다시 돌려 ripple_v에 max=목표 리플을 쓴다.
    - verify: args는 해결책을 적용한 값, expect는 '해결 후 목표 범위'다. 예) 바꾼 입력 전압의 tj_c에 max=125
    - info: 참고 계산이므로 expect를 비워 둔다.
    - expect는 합격과 불합격이 실제로 갈리는 범위여야 한다. 비율 지표(gain_ratio, duty)를 0~1 전체로 두거나 min·max를
@@ -87,7 +110,13 @@ DIAGNOSE_SYSTEM = """너는 반도체 회사의 FAE(현장 응용 엔지니어)�
    여유를 두고 정한다. 재분석에서도 opamp_closed_loop_gain(과 opamp_ac) 테스트는 그대로 유지하고 기대 범위와 값만 고친다.
    슬루율 한계도 역산한다: 출력 진폭 Vpp를 그대로 내는 최대 주파수는 f ≤ SR × 1e6 / (π × Vpp) (SR은 V/µs).
    예) SR 1 V/µs, 4 Vpp → f ≤ 79.6 kHz. 방법은 주파수를 그 이하로 낮추거나, 출력 진폭을 줄이거나, SR이 더 큰 부품으로
-   바꾸는 것이다. 이 식으로 확인한 값을 verify의 args에 쓰고 여유를 둔다."""
+   바꾸는 것이다. 이 식으로 확인한 값을 verify의 args에 쓰고 여유를 둔다.
+   벅 리플도 목표 리플 ΔV(여유 포함)를 기준으로 역산한다. 인덕터 전류 리플 ΔIL은 인덕터에 반비례한다 (L을 2배로 하면 ΔIL이
+   절반). ESR 성분이 지배하면 ESR ≤ ΔV / ΔIL, 용량 성분이 지배하면 Cout ≥ ΔIL / (8 × fsw × ΔV)이다.
+   예) ΔIL 0.5 A, fsw 300 kHz, 목표 50 mV → ESR ≤ 0.1 Ω, 용량 성분만 보면 Cout ≥ 4.2 µF. 방법은 ESR이 낮은 커패시터로 바꾸기,
+   용량 늘리기, 인덕터 키우기다. 최소 온타임 문제는 Vin ≤ Vout / (fsw × 최소 온타임)으로 역산한다
+   (예: Vout 2 V, fsw 400 kHz, 최소 온타임 150 ns → Vin ≤ 33.3 V). 재분석에서도 buck_ripple_estimate와 buck_switch
+   테스트는 그대로 유지하고 값과 기대 범위만 고친다."""
 
 RESPOND_SYSTEM = """너는 반도체 회사의 기술지원 담당자다. 분석 결과로 고객에게 보낼 답변 초안을 쓴다.
 - 고객이 쓴 언어로 쓴다 (한국어 문의면 한국어)
@@ -96,6 +125,10 @@ RESPOND_SYSTEM = """너는 반도체 회사의 기술지원 담당자다. 분석
 - 테스트 결과는 핵심 수치와 함께 짧게, 가정값은 가정이라고 밝힌다.
   답변에 쓰는 계산 숫자는 고객이 알려 준 조건(또는 해결책을 적용한 조건)으로 계산한 결과만이다. 고객 조건과 다른
   가정값(다른 입력 전압, 임의의 주파수 등)으로 만든 참고 계산 결과는 답변에 넣지 않는다
+- 분석 결과의 design_check는 코드가 계산한 값이다. current_limit이 exceeds_min이면 답변에 그 숫자(인덕터 최대 전류, 전류 제한
+  최소값, 전류 제한이 시작되는 부하)와 권장 조치(인덕터를 키우는 값)를 쓴다. measured_ripple이 unexplained 또는 needs_esr이면
+  '잰 값 X는 같은 조건의 계산 Y로는 설명되지 않는다'고 쓰고 측정 방법(프로브 접지선)과 레이아웃을 확인해 달라고 요청한다.
+  그 값이 다른 원인과 '맞는다'고 쓰지 않는다
 - 추가로 필요한 정보는 목록으로 요청한다
 - 부품 스펙에 없는 수치나 확약(보증, 교환 약속 등)은 쓰지 않는다
 - 품질 클레임에서 rating_check.abs_over가 있으면 답변 첫 문단에서 고객이 알려 준 값, 부품 카드의 한계(절대 최대와

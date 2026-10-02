@@ -232,3 +232,150 @@ def test_compare_circuit_waveforms_share_time_axis():
     result = spice.compare_circuit("lc_load_step", BASE, {**BASE, "c_f": 3 * BASE["c_f"]})
     assert result["before"]["waveform"]["time_us"] == result["after"]["waveform"]["time_us"]
     assert min(result["after"]["waveform"]["v"]) > min(result["before"]["waveform"]["v"])  # Cout을 키우면 덜 떨어진다
+
+
+BUCK_PARAMS = {  # 평가 문의 L-02(LM2596, 12→5 V, 1 A)의 조건
+    "vin_v": 12, "vout_v": 5, "iout_a": 1.0, "l_h": 33e-6, "fsw_hz": 150e3, "cout_f": 100e-6, "esr_ohm": 0.3,
+}  # fmt: skip
+BUCK_LIGHT = {**BUCK_PARAMS, "iout_a": 0.1, "cout_f": 220e-6, "esr_ohm": 0.1}  # 같은 부품, 부하가 가벼운 경우
+needs_ngspice = pytest.mark.skipif(spice.find_ngspice() is None, reason="ngspice 미설치")
+
+
+def test_buck_switch_rejects_missing_or_impossible_inputs():
+    with pytest.raises(ValueError, match="필요한 값"):
+        spice.run_circuit("buck_switch", {"vin_v": 12})
+    with pytest.raises(ValueError, match="입력 전압이 출력 전압보다"):
+        spice.run_circuit("buck_switch", {**BUCK_PARAMS, "vout_v": 12})
+    with pytest.raises(ValueError, match="iout_a"):
+        spice.run_circuit("buck_switch", {**BUCK_PARAMS, "iout_a": 0})
+
+
+def test_buck_switch_is_skipped_without_ngspice(monkeypatch):
+    monkeypatch.setattr(spice, "find_ngspice", lambda: None)
+    result = spice.run_circuit("buck_switch", BUCK_PARAMS)
+    assert result["skipped"] is True and result["circuit"] == "buck_switch"
+
+
+def test_buck_switch_netlist_pins_the_output_only_while_searching_the_duty():
+    p = spice._buck_inputs(BUCK_PARAMS)
+    for pinned in (True, False):
+        values = {
+            **p, "ton_s": 1e-6, "period_s": 6.7e-6, "step_s": 1e-7, "tstart_s": 0.0, "tstop_s": 1e-5,
+            "rload_ohm": 5.0, "il0_a": 0.7, "pin_block": "Rpin out vp 0.0001" if pinned else "* 출력 고정 없음",
+        }  # fmt: skip
+        netlist = spice.render_circuit("buck_switch", values)
+        assert "$" not in netlist and ("Rpin out vp" in netlist) is pinned
+
+
+@needs_ngspice
+def test_buck_switch_matches_the_ccm_formula_and_the_measured_case():
+    r = spice.run_circuit("buck_switch", BUCK_PARAMS)
+    assert r["ok"] and r["converged"] and r["dcm"] == 0
+    assert r["vout_avg_v"] == pytest.approx(5.0, rel=0.01)
+    # 인덕터 전류 리플: 해석식 (Vout + Vd)(1 − D) / (L fsw), Vd는 기본 다이오드 강하 0.4 V
+    expected_il = (5 + 0.4) * (1 - r["duty"]) / (33e-6 * 150e3)
+    assert r["delta_il_a"] == pytest.approx(expected_il, rel=0.03)
+    # 출력 리플: 평가 문의 L-02의 정답(ESR 0.3 Ω × 0.59 A ≈ 177 mV)과 같은 값
+    assert r["ripple_v"] == pytest.approx(0.177, rel=0.1)
+    assert r["on_time_s"] == pytest.approx(r["duty"] / 150e3)
+    assert r["assumed"] == {"rds_ohm": 0.1, "dcr_ohm": 0.02, "vd_v": 0.4}
+
+
+@needs_ngspice
+def test_buck_switch_ripple_follows_esr_and_capacitance():
+    low_esr = spice.run_circuit("buck_switch", {**BUCK_PARAMS, "cout_f": 470e-6, "esr_ohm": 0.02})  # H-L1의 조건
+    assert low_esr["ripple_v"] == pytest.approx(0.0128, rel=0.1)
+    assert low_esr["ripple_v"] < spice.run_circuit("buck_switch", BUCK_PARAMS)["ripple_v"] / 10
+
+
+@needs_ngspice
+def test_buck_switch_light_load_is_discontinuous_and_matches_the_dcm_formula():
+    r = spice.run_circuit("buck_switch", BUCK_LIGHT)
+    assert r["ok"] and r["converged"] and r["dcm"] == 1 and r["il_min_a"] == pytest.approx(0.0, abs=1e-3)
+    vin, vout, vd, fl = 12, 5, 0.4, 33e-6 * 150e3
+    duty = (2 * fl * 0.1 * (vout + vd) / ((vin - vout) * (vin + vd))) ** 0.5  # 불연속 모드 해석식
+    assert r["duty"] == pytest.approx(duty, rel=0.03)
+    assert r["delta_il_a"] == pytest.approx((vin - vout) * duty / fl, rel=0.03)  # 전류 피크 = 변화폭
+    assert r["delta_il_a"] < 0.7 * 0.589  # 연속 모드 식(0.589 A)보다 훨씬 작다
+
+
+@needs_ngspice
+def test_buck_switch_inductor_swap_case_sits_on_the_ccm_dcm_boundary():
+    from fae_agent.tools import calc
+
+    swap = {**BUCK_PARAMS, "iout_a": 2.0, "l_h": 4.7e-6, "cout_f": 220e-6, "esr_ohm": 0.1}  # L-03: 인덕터를 4.7 µH로 교체
+    r = spice.run_circuit("buck_switch", swap)
+    est = calc.buck_ripple_estimate(12, 5, 4.7e-6, 150e3, 220e-6, esr_ohm=0.1, iout_a=2.0)
+    assert r["ok"] and r["dcm"] == 1 and est["dcm"] == 1  # 계산도 시뮬레이션도 불연속 경계로 본다
+    assert r["delta_il_a"] > 4.0  # 부하 2 A의 두 배가 넘는 전류 변화폭
+
+
+@needs_ngspice
+def test_buck_switch_returns_the_last_cycles_as_waveform():
+    r = spice.run_circuit("buck_switch", BUCK_PARAMS)
+    wave = r["waveform"]
+    assert wave["time_us"][0] == 0 and wave["time_us"][-1] == pytest.approx(10 / 150e3 * 1e6, rel=0.01)  # 10주기
+    assert wave["ref_v"] == 5 and max(wave["v"]) - min(wave["v"]) == pytest.approx(r["ripple_v"], rel=0.05)
+
+
+@needs_ngspice
+def test_compare_circuit_reports_ripple_improvement_for_buck_switch():
+    result = spice.compare_circuit("buck_switch", BUCK_PARAMS, {**BUCK_PARAMS, "esr_ohm": 0.05})
+    assert result["improvement_pct"] > 70  # ESR 0.3 → 0.05 Ω: ESR 성분이 줄어 리플이 크게 준다
+    assert result["after_ripple_pct"] == pytest.approx(result["after"]["ripple_pct"])
+
+
+def buck_review(params: dict, bound):
+    """계산 단계와 buck_switch 단계를 실제로 실행하고 검수까지 돌린다."""
+    from fae_agent.agents.checker import run_checks
+    from fae_agent.agents.qa import run_qa
+    from fae_agent.schemas import CheckStep, Conditions, Diagnosis, Hypothesis, IntakeResult, Solution
+    from fae_agent.tools.gateway import ToolGateway
+
+    plan = [
+        CheckStep(label="계산", purpose="reproduce", tool="calc.buck_ripple_estimate", expect=[bound],
+                  args_json=json.dumps(params)),
+        CheckStep(label="시뮬레이션", purpose="reproduce", tool="spice.run_circuit", expect=[bound],
+                  args_json=json.dumps({"circuit": "buck_switch", "params": params})),
+    ]  # fmt: skip
+    solution = Solution(summary="ESR이 낮은 커패시터로 교체", test_plan=plan)
+    report = run_checks(solution, ToolGateway("local"))
+    diagnosis = Diagnosis(hypotheses=[Hypothesis(cause="ESR 성분 리플", evidence=[])], solution=solution)
+    intake = IntakeResult(category="technical", route="fae", conditions=Conditions())
+    return report, run_qa(intake, {"part_card": {"type": "buck"}}, diagnosis, report)
+
+
+@needs_ngspice
+def test_buck_calc_and_simulation_steps_are_cross_checked_end_to_end():
+    from fae_agent.schemas import Bound
+
+    report, review = buck_review(BUCK_PARAMS, Bound(metric="ripple_v", min=0.1))
+    assert [s.status for s in report.steps] == ["pass", "pass"], [s.notes for s in report.steps]
+    assert "test_mismatch" not in review.issue_codes
+    assert any(w.startswith("교차 확인:") and "일치" in w for w in review.warnings)
+    assert any("가정했습니다" in w and "vd_v=0.4" in w for w in review.warnings)
+
+
+@needs_ngspice
+def test_buck_light_load_is_flagged_as_discontinuous_in_the_cross_check():
+    from fae_agent.schemas import Bound
+
+    report, review = buck_review(BUCK_LIGHT, Bound(metric="ripple_v", min=0.01))
+    assert [s.status for s in report.steps] == ["pass", "pass"], [s.notes for s in report.steps]
+    assert any(w.startswith("교차 확인 불일치") and "불연속" in w for w in review.warnings)
+
+
+@needs_ngspice
+def test_buck_switch_metrics_are_reachable_by_step_expectations():
+    from fae_agent.agents.checker import run_checks
+    from fae_agent.schemas import Bound, CheckStep, Solution
+    from fae_agent.tools.gateway import ToolGateway
+
+    expect = [Bound(metric=m, min=lo, max=hi) for m, lo, hi in (
+        ("ripple_v", 0.1, 0.25), ("ripple_pct", 2.0, 5.0), ("delta_il_a", 0.5, 0.7), ("ripple_ratio", 0.5, 0.7),
+        ("duty", 0.4, 0.5), ("on_time_s", 2.5e-6, 3.5e-6), ("dcm", 0, 0), ("vout_avg_v", 4.9, 5.1),
+    )]  # fmt: skip
+    args = json.dumps({"circuit": "buck_switch", "params": BUCK_PARAMS})
+    plan = [CheckStep(label="리플", purpose="reproduce", tool="spice.run_circuit", args_json=args, expect=expect)]
+    report = run_checks(Solution(summary="s", test_plan=plan), ToolGateway("local"))
+    assert report.steps[0].status == "pass", report.steps[0].notes

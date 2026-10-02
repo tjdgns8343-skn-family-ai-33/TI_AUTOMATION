@@ -24,7 +24,7 @@ def list_samples() -> list[dict[str, Any]]:
                 "body": complaint.body,
             }
         )
-    groups = {"eval_hard_cases": "구체적 문의", "eval_real_parts": "실제 부품 문의", "eval_new_parts": "새 부품 문의"}
+    groups = {"eval_hard_cases": "구체적 문의", "eval_real_parts": "실제 부품 문의", "eval_new_parts": "새 부품 문의", "eval_buck_switch": "벅 스위칭 문의"}
     for stem, group in groups.items():
         path = data / "eval" / f"{stem}.jsonl"
         if not path.exists():

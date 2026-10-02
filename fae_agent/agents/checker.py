@@ -81,7 +81,10 @@ def run_checks(solution: Solution | None, gateway: ToolGateway) -> CheckReport:
 # calc 도구가 돌려주는 지표 이름. LLM이 expect에 지표 이름을 지어내지 않도록 목록에 함께 알려 준다.
 CALC_METRICS: dict[str, str] = {
     "buck_output_voltage": "vout_v",
-    "buck_ripple_estimate": "duty, delta_il_a, ripple_cap_v, ripple_esr_v, ripple_v, ripple_pct, ripple_ratio(iout_a>0일 때)",
+    "buck_ripple_estimate": (
+        "duty, delta_il_a, ripple_cap_v, ripple_esr_v, ripple_v, ripple_pct, on_time_s, "
+        "ripple_ratio·iout_crit_a·il_max_a(인덕터 최대 전류, 전류 제한과 비교)·dcm(iout_a>0일 때, dcm=1이면 불연속 모드라 식이 맞지 않음)"
+    ),
     "lc_resonance": "f0_hz, z0_ohm",
     "thermal_estimate": "ploss_w, tj_c",
     "ldo_thermal_estimate": "pdiss_w, tj_c",
@@ -117,5 +120,12 @@ def describe_test_tools() -> str:
         "params = rf_ohm, rg_ohm, gbw_hz, freq_hz, vin_pp(선택), a0(선택, 개방 이득 선형값, 기본 1e5) "
         "→ 지표 dc_gain, bw_hz, gain_at_freq, gain_ratio, vout_pp(vin_pp가 있을 때). run_circuit으로만 쓴다 "
         "(compare_circuit은 언더슈트 전용). 지표 이름이 calc.opamp_closed_loop_gain과 같다"
+    )
+    lines.append(
+        "- spice 회로 템플릿 buck_switch (벅 컨버터의 스위칭 동작, 비동기·개루프, 듀티는 자동으로 찾음): "
+        "params = vin_v, vout_v, iout_a, l_h, fsw_hz, cout_f, esr_ohm 필수, rds_ohm·dcr_ohm·vd_v 선택 "
+        "(기본 0.1 Ω·0.02 Ω·0.4 V) → 지표 duty, on_time_s, ripple_v, ripple_pct, delta_il_a, il_min_a, il_max_a, "
+        "ripple_ratio, vout_avg_v, dcm(1이면 불연속). run_circuit으로만 쓴다. 지표 이름이 calc.buck_ripple_estimate와 같다. "
+        "부하가 가벼우면 불연속이 되어 계산식과 다르다. 동기 벅(카드에 rdson_low_ohm)은 vd_v=iout_a×rdson_low_ohm, rds_ohm=rdson_high_ohm으로 지정한다"
     )
     return "\n".join(lines)

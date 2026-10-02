@@ -40,6 +40,9 @@ export default function WaveChart({ waves }: { waves: NamedWave[] }) {
   const x = (t: number) => PAD.left + ((t - tMin) / (tMax - tMin || 1)) * (W - PAD.left - PAD.right);
   const y = (v: number) => H - PAD.bottom - ((v - vMin) / (vMax - vMin)) * (H - PAD.top - PAD.bottom);
   const yTicks = Array.from({ length: 5 }, (_, i) => vMin + ((vMax - vMin) * i) / 4);
+  // 리플처럼 전압 범위가 작으면(예: 5 V 위의 수십 mV) 눈금 이름이 모두 같아지지 않게 소수 자릿수를 늘린다
+  const span = vMax - vMin;
+  const digits = span >= 5 ? 0 : span >= 0.5 ? 1 : span >= 0.05 ? 2 : 3;
   const xTicks = Array.from({ length: 6 }, (_, i) => tMin + ((tMax - tMin) * i) / 5);
   const path = (w: Waveform) =>
     w.time_us.map((t, i) => `${i === 0 ? "M" : "L"}${x(t).toFixed(1)} ${y(w.v[i]).toFixed(1)}`).join(" ");
@@ -51,7 +54,7 @@ export default function WaveChart({ waves }: { waves: NamedWave[] }) {
           <g key={`y${v}`}>
             <line className="wave-grid" x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} />
             <text className="wave-tick" x={PAD.left - 8} y={y(v) + 4} textAnchor="end">
-              {v.toFixed(1)}
+              {v.toFixed(digits)}
             </text>
           </g>
         ))}

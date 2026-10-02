@@ -13,6 +13,7 @@ class FAEState(TypedDict, total=False):
     complaint: dict[str, Any]  # Complaint
     intake: dict[str, Any]  # IntakeResult
     research: dict[str, Any]  # 검색된 근거·사례·부품 카드
+    design_check: list[dict[str, Any]]  # 코드가 계산한 설계 점검 (전류 제한 여유, 잰 리플과 계산 비교)
     diagnosis: dict[str, Any]  # Diagnosis (+ meta)
     check_report: dict[str, Any]  # CheckReport
     qa: dict[str, Any]  # QAReview

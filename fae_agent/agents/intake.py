@@ -50,6 +50,8 @@ CONDITION_PATTERNS: list[tuple[str, str, float]] = [
     ("vin_v", rf"(?:\bvin|입력(?:\s*전압)?)\s*{_P}\s*{_NUM}\s*v(?![a-z])", 1.0),
     ("vout_v", rf"(?:\bvout|목표|출력(?:\s*전압)?)\s*{_P}\s*{_NUM}\s*v(?![a-z])", 1.0),
     ("vout_meas_v", rf"측정(?:값)?\s*{_P}\s*{_NUM}\s*v(?![a-z])", 1.0),
+    # 잰 리플만 읽는다: 규격·목표 값("리플 규격 10mV 이하")은 건너뛴다
+    ("ripple_meas_v", rf"(?:리플|\bripple)(?:(?!규격|목표|요구|\bspec)[^0-9\n.]){{0,24}}?{_NUM}\s*mv(?!\s*(?:이하|이내|미만|이상))", 1e-3),
     ("iout_a", rf"(?:\biout|\bload|부하(?:\s*전류)?|출력\s*전류)\s*{_P}\s*{_NUM}\s*a(?![a-z])", 1.0),
     ("ta_c", rf"(?:\bta|주변\s*온도|\bambient)\s*{_P}\s*(-?\d+(?:\.\d+)?)\s*°?\s*c(?![a-z])", 1.0),
     ("fsw_hz", rf"(?:\bfsw|스위칭\s*주파수)\s*{_P}\s*{_NUM}\s*khz", 1e3),

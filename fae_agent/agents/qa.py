@@ -8,9 +8,10 @@
 - rating_false_claim: 고객 값이 한계를 넘지 않는데 원인 가설 제목에 '정격 초과'를 쓴 경우
 - tests_dropped: 테스트 오류로 되돌려진 재분석이 오류를 고치지 않고 테스트를 모두 뺀 경우 (그 부품에 쓸 도구가 있을 때)
 - trivial_test: 기대 범위가 어떤 값이나 통과하는 테스트 (gain_ratio를 0~1 전체로 두는 것처럼)
+- design_not_addressed: 코드가 계산한 설계 점검(인덕터 최대 전류가 전류 제한 최소값 이상)을 원인 가설이 다루지 않은 경우
 값 대조(check_value)가 실패하면 지적문에 합격 범위 방향 힌트를 붙인다 (방향을 틀려 3번 재분석하고도 못 고친 사례가 있었다).
-경고만 하는 것: 같은 조건의 연산증폭기 계산과 시뮬레이션 결과 대조(일치 또는 불일치), 테스트 구성,
-고객 조건과 다른 값을 쓴 재현·참고 계산, 일부만 무의미한 기대 범위.
+경고만 하는 것: 같은 조건의 연산증폭기·벅 리플 계산과 시뮬레이션 결과 대조(일치 또는 불일치), 불연속 전도 안내, 테스트 구성,
+고객 조건과 다른 값을 쓴 재현·참고 계산, 일부만 무의미한 기대 범위, 벅 계산의 ESR 0 입력과 동기 벅의 다이오드 강하 기본값.
 """
 
 from __future__ import annotations
@@ -33,11 +34,17 @@ TOOL_PART_TYPES: dict[str, set[str]] = {
 CIRCUIT_PART_TYPES: dict[str, set[str]] = {
     "lc_load_step": {"buck", "ldo"},  # 이상적 전원 + LC 출력 필터 모델
     "opamp_ac": {"opamp"},  # 비반전 증폭기 + 1차 연산증폭기 모델의 주파수 응답
+    "buck_switch": {"buck"},  # 비동기 벅의 스위칭 동작 (개루프, 이상적 스위치·다이오드 + 손실)
 }
 
 # 같은 조건의 계산(calc.opamp_closed_loop_gain)과 시뮬레이션(opamp_ac)을 대조할 때 같아야 하는 인자와 허용 오차
 CROSS_CHECK_KEYS = ("rf_ohm", "rg_ohm", "gbw_hz", "freq_hz")
 CROSS_CHECK_TOLERANCE = 0.05
+# 벅 리플: 계산(calc.buck_ripple_estimate)과 시뮬레이션(buck_switch)을 대조할 때 같아야 하는 인자와 허용 오차.
+# 계산은 이상적인 스위치·다이오드에 용량·ESR 성분을 단순 합산한 값이라 시뮬레이션과 수 %~30 % 차이가 날 수 있다
+BUCK_CROSS_KEYS = ("vin_v", "vout_v", "l_h", "fsw_hz", "cout_f")
+BUCK_CURRENT_TOLERANCE = 0.15
+BUCK_RIPPLE_TOLERANCE = 0.30
 
 # 값 대조(check_value)가 실패했을 때 지적문에 붙이는 방향 힌트. 방향이 맞는데 실패하면 가설이 틀린 것이라는 말도 함께 적어
 # 통과시키려고 방향만 뒤집는 일을 막는다.
@@ -62,6 +69,8 @@ ARG_TO_CONDITION = {
 CONDITION_TOLERANCE = 0.01
 
 RATING_WORDS = ("정격", "절대 최대", "절대최대")
+# 전류 제한을 다루는 가설인지 보는 낱말 (design_check의 current_limit이 최소 제한을 넘었을 때)
+CURRENT_LIMIT_WORDS = ("전류 제한", "전류제한", "current limit", "과전류", "피크 전류", "최대 전류")
 # 이전 시도가 테스트 문제로 되돌려졌음을 뜻하는 검수 지적 코드 (다음 시도가 테스트를 빼면 tests_dropped)
 TEST_TROUBLE_CODES = {"test_error", "tests_dropped"}
 
@@ -200,7 +209,7 @@ def _tests_dropped(plan: list[CheckStep], previous_codes: set[str], part_type: s
     )
 
 
-def _cross_check(plan: list[CheckStep], report: CheckReport) -> list[str]:
+def _cross_check_opamp(plan: list[CheckStep], report: CheckReport) -> list[str]:
     """같은 조건의 연산증폭기 계산과 시뮬레이션의 이득(gain_at_freq)을 대조해 알려 준다 (경고 목록에 넣는다).
 
     두 결과가 허용 오차 안이면 서로 다른 방법으로 확인됐다는 뜻이고, 벗어나면 모델 가정이 다르다는 신호다.
@@ -240,9 +249,151 @@ def _cross_check(plan: list[CheckStep], report: CheckReport) -> list[str]:
     return messages
 
 
+def _number(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _buck_runs(plan: list[CheckStep], report: CheckReport) -> tuple[list[tuple[dict, dict]], list[tuple[dict, dict]]]:
+    """(계산 인자, 결과)와 (시뮬레이션 params, 결과) 목록. 벅 리플 계산과 buck_switch 실행만 모은다."""
+    calc_runs: list[tuple[dict, dict]] = []
+    spice_runs: list[tuple[dict, dict]] = []
+    if len(plan) != len(report.steps):
+        return calc_runs, spice_runs
+    for step, result in zip(plan, report.steps, strict=True):
+        if result.status not in ("pass", "fail"):
+            continue
+        try:
+            args = step.args()
+        except (ValueError, TypeError):
+            continue
+        if step.tool == "calc.buck_ripple_estimate":
+            calc_runs.append((args, result.outputs))
+        elif step.tool == "spice.run_circuit" and args.get("circuit") == "buck_switch":
+            spice_runs.append((args.get("params") or {}, result.outputs))
+    return calc_runs, spice_runs
+
+
+def _cross_check_buck(plan: list[CheckStep], report: CheckReport) -> list[str]:
+    """같은 조건의 벅 리플 계산(연속 전도 식)과 시뮬레이션(buck_switch)을 대조해 알려 준다.
+
+    시뮬레이션에서 인덕터 전류가 0까지 내려가면(불연속 전도) 계산식의 전제가 깨지므로 숫자가 비슷해도 알려 준다.
+    """
+    calc_runs, spice_runs = _buck_runs(plan, report)
+    messages: list[str] = []
+    for calc_args, calc_out in calc_runs:
+        for spice_args, spice_out in spice_runs:
+            same = all(_close(calc_args.get(k), spice_args.get(k)) for k in BUCK_CROSS_KEYS)
+            esr = calc_args.get("esr_ohm", 0.0)
+            if not same or not _close(esr, spice_args.get("esr_ohm")):
+                continue
+            values = [_number(d.get(k)) for d in (calc_out, spice_out) for k in ("delta_il_a", "ripple_v")]
+            if any(v is None for v in values):
+                continue
+            calc_il, calc_v, sim_il, sim_v = values  # type: ignore[misc]
+            il_diff = abs(calc_il - sim_il) / max(abs(calc_il), 1e-12)
+            v_diff = abs(calc_v - sim_v) / max(abs(calc_v), 1e-12)
+            pair = f"인덕터 전류 리플 계산 {calc_il:.3g} A·시뮬레이션 {sim_il:.3g} A, 출력 리플 계산 {calc_v * 1e3:.3g} mV·시뮬레이션 {sim_v * 1e3:.3g} mV"
+            if spice_out.get("dcm") == 1:
+                text = (
+                    "교차 확인 불일치: 시뮬레이션에서 인덕터 전류가 0까지 내려갑니다(불연속 전도). 연속 모드 계산식은 "
+                    f"전제가 맞지 않으니 시뮬레이션 값을 쓰세요 ({pair}; 차이 {il_diff * 100:.2g} %, {v_diff * 100:.2g} %)"
+                )
+            elif il_diff <= BUCK_CURRENT_TOLERANCE and v_diff <= BUCK_RIPPLE_TOLERANCE:
+                text = f"교차 확인: 계산과 시뮬레이션이 허용 오차 이내로 일치합니다 ({pair})"
+            else:
+                text = (
+                    f"교차 확인 불일치: {pair}. 계산식은 이상적인 스위치와 다이오드를 가정하고 시뮬레이션은 다이오드 강하 등 "
+                    "손실을 넣어서, 출력 전압이 낮을수록 차이가 큽니다"
+                )
+            if text not in messages:
+                messages.append(text)
+    return messages
+
+
+def _buck_notes(plan: list[CheckStep], report: CheckReport) -> list[str]:
+    """벅 테스트의 주의 사항: 계산식이 맞지 않는 불연속 전도, 수렴하지 않은 시뮬레이션, 가정한 값."""
+    calc_runs, spice_runs = _buck_runs(plan, report)
+    notes: list[str] = []
+    paired_dcm = any(out.get("dcm") == 1 for _, out in spice_runs)
+    for _, out in calc_runs:
+        if out.get("dcm") == 1 and not paired_dcm:
+            crit = _number(out.get("iout_crit_a"))
+            detail = f" (인덕터 전류 리플의 절반 {crit:.3g} A보다 부하가 작음)" if crit is not None else ""
+            notes.append(
+                f"벅 리플 계산이 불연속 전도 영역입니다{detail}. 연속 모드 식의 리플 값은 맞지 않으니 답변에 쓰지 말고 "
+                "시뮬레이션(buck_switch)으로 확인하세요."
+            )
+            break
+    for params, out in spice_runs:
+        if out.get("converged") is False:
+            notes.append(f"벅 시뮬레이션이 목표 출력에 수렴하지 않았습니다 (출력 오차 {out.get('vout_error_pct', 0):.2g} %).")
+        assumed = {k: v for k, v in (out.get("assumed") or {}).items() if k not in params}
+        if assumed:
+            text = ", ".join(f"{k}={v:g}" for k, v in assumed.items())
+            note = f"벅 시뮬레이션은 고객이 알려 주지 않은 값을 일반적인 값으로 가정했습니다: {text}."
+            if note not in notes:
+                notes.append(note)
+    return notes
+
+
+def _cross_check(plan: list[CheckStep], report: CheckReport) -> list[str]:
+    """계산과 시뮬레이션의 대조 결과(연산증폭기 이득, 벅 리플)와 벅 테스트의 주의 사항."""
+    return [*_cross_check_opamp(plan, report), *_cross_check_buck(plan, report), *_buck_notes(plan, report)]
+
+
 def _close(a: Any, b: Any) -> bool:
     numbers = all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (a, b))
     return numbers and math.isclose(a, b, rel_tol=1e-6)
+
+
+def _assumption_warnings(plan: list[CheckStep], card: dict[str, Any], conditions: dict[str, Any]) -> list[str]:
+    """벅 계산·시뮬레이션이 모르는 값을 조용히 기본값으로 둔 경우를 알려 준다 (경고만).
+
+    - esr_ohm=0: 고객이 ESR을 주지 않았는데 0을 넣으면 ESR 성분이 없는 하한 리플이 나온다 (D-1에서 쓴 방식).
+    - 동기 벅(카드에 rdson_low_ohm): buck_switch의 vd_v 기본값 0.4 V는 외부 다이오드 값이라 하단 MOSFET 강하로 바꿔야 한다.
+    """
+    synchronous = (card.get("typical") or {}).get("rdson_low_ohm") is not None
+    messages: list[str] = []
+    for step in plan:
+        try:
+            args = step.args()
+        except (ValueError, TypeError):
+            continue
+        circuit = args.get("circuit") if step.tool == "spice.run_circuit" else None
+        if step.tool == "calc.buck_ripple_estimate":
+            values = args
+        elif circuit == "buck_switch" and isinstance(args.get("params"), dict):
+            values = args["params"]
+        else:
+            continue
+        if "esr_ohm" not in conditions and not values.get("esr_ohm"):
+            messages.append(
+                f"테스트 '{step.label}'는 esr_ohm에 0을 넣어 ESR을 무시했습니다. 고객이 ESR을 주지 않았으니 커패시터 종류의 일반값을 쓰고 "
+                "가정으로 적으세요. 0이면 리플이 실제보다 작게 계산됩니다."
+            )
+        if circuit == "buck_switch" and synchronous and "vd_v" not in values:
+            messages.append(
+                f"테스트 '{step.label}'는 동기 벅(부품 카드에 하단 MOSFET RDS(on)이 있음)인데 vd_v를 지정하지 않아 외부 다이오드 강하 0.4 V로 "
+                "계산했습니다. vd_v에는 하단 MOSFET의 전압 강하(부하 전류 × rdson_low_ohm)를, rds_ohm에는 상단 RDS(on)을 넣으세요."
+            )
+    return list(dict.fromkeys(messages))
+
+
+def _check_design(
+    design: list[dict[str, Any]] | None,
+    diagnosis: Diagnosis,
+    add: Callable[[str, str], None],
+    warnings: list[str],
+) -> None:
+    """코드가 계산한 설계 점검(design_check)을 검수에 반영한다. 전류 제한 초과를 가설이 놓치면 되돌려 보낸다."""
+    hypotheses = " ".join(f"{h.cause} {h.mechanism}" for h in diagnosis.hypotheses).lower()
+    covered = any(word in hypotheses for word in CURRENT_LIMIT_WORDS)
+    for fact in design or []:
+        if fact["kind"] == "current_limit" and fact["status"] == "exceeds_min" and not covered:
+            message = f"{fact['text']} 그런데 원인 가설에 전류 제한이 없습니다. 이 숫자를 가설과 테스트에 쓰세요."
+            add("design_not_addressed", message)
+        else:
+            warnings.append(f"설계 점검: {fact['text']}")
 
 
 def _composition(steps: list[CheckStep]) -> str | None:
@@ -265,8 +416,9 @@ def run_qa(
     diagnosis: Diagnosis,
     report: CheckReport,
     previous_codes: Iterable[str] = (),
+    design: list[dict[str, Any]] | None = None,
 ) -> QAReview:
-    """previous_codes: 바로 앞 시도의 검수 지적 코드 (재분석일 때만. 첫 시도는 비워 둔다)."""
+    """previous_codes: 바로 앞 시도의 검수 지적 코드 (재분석일 때만. 첫 시도는 비워 둔다). design: 설계 점검 결과."""
     issues: list[str] = []
     codes: list[str] = []
     warnings: list[str] = []
@@ -330,6 +482,8 @@ def run_qa(
     warnings.extend(_cross_check(plan, report))
 
     _check_ratings(intake, research, diagnosis, add, warnings)
+    _check_design(design, diagnosis, add, warnings)
+    warnings.extend(_assumption_warnings(plan, research.get("part_card") or {}, intake.conditions.known()))
     if intake.missing_info:
         warnings.append("고객에게 추가로 받을 정보: " + ", ".join(intake.missing_info))
     return QAReview(passed=not codes, issues=issues, issue_codes=sorted(set(codes)), warnings=warnings)

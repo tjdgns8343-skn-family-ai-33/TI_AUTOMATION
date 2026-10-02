@@ -62,7 +62,7 @@ def test_dropping_tests_after_a_test_error_is_sent_back(monkeypatch):
     attempts = iter([plan(wrong_metric), plan(), plan(fixed)])
     seen_feedback: list = []
 
-    def fake_diagnose(complaint, intake, research, gateway, previous=None, qa=None):
+    def fake_diagnose(complaint, intake, research, gateway, previous=None, qa=None, design=None):
         seen_feedback.append((qa or {}).get("issue_codes", []))
         return next(attempts)
 

@@ -32,10 +32,11 @@ def buck_ripple_estimate(
     esr_ohm: float = 0.0,
     iout_a: float = 0.0,
 ) -> dict[str, Any]:
-    """연속 전도 모드(CCM) 벅의 인덕터 전류 리플과 출력 전압 리플 근사.
+    """연속 전도 모드(CCM) 벅의 인덕터 전류 리플과 출력 전압 리플 근사 (iout_a를 주면 불연속 모드인지도 판정).
 
     ΔIL = (Vin − Vout) × D / (L × fsw), D = Vout / Vin
     ΔVout ≈ ΔIL × ESR + ΔIL / (8 × fsw × Cout)  (두 성분을 더한 보수적 추정)
+    부하 전류가 ΔIL/2보다 작으면 인덕터 전류가 0까지 내려가는 불연속 모드(DCM)라서 이 식은 맞지 않는다.
     """
     _positive(vin_v=vin_v, vout_v=vout_v, l_h=l_h, fsw_hz=fsw_hz, cout_f=cout_f)
     if vout_v >= vin_v:
@@ -53,8 +54,16 @@ def buck_ripple_estimate(
         "ripple_v": ripple,
         "ripple_pct": ripple / vout_v * 100,
     }
+    result["on_time_s"] = duty / fsw_hz  # 스위치가 켜져 있는 시간. 부품의 최소 온타임보다 짧으면 펄스를 건너뛴다
     if iout_a and iout_a > 0:
         result["ripple_ratio"] = delta_il / iout_a  # 보통 0.2~0.4를 목표로 설계
+        result["iout_crit_a"] = delta_il / 2  # 부하가 이 값보다 작으면 불연속 모드
+        result["dcm"] = int(iout_a < delta_il / 2)
+        result["mode"] = "DCM(불연속, 이 식은 맞지 않음)" if result["dcm"] else "CCM(연속)"
+        if result["dcm"]:  # 불연속이면 전류가 0에서 올라가는 삼각파라 피크 = sqrt(2·Iout·Vout·(Vin−Vout) / (L·fsw·Vin)) (이상적 소자)
+            result["il_max_a"] = math.sqrt(2 * iout_a * vout_v * (vin_v - vout_v) / (l_h * fsw_hz * vin_v))
+        else:  # 연속이면 부하 전류 + 리플 전류의 절반. 부품의 전류 제한과 비교하는 값 (식 IL(max) = IOUT + ΔIL/2)
+            result["il_max_a"] = iout_a + delta_il / 2
     return result
 
 

@@ -22,6 +22,7 @@ from .agents.qa import run_qa
 from .agents.research import run_research
 from .agents.respond import run_respond
 from .config import get_settings
+from .design_check import design_facts
 from .ratings import rating_facts
 from .schemas import CheckReport, Complaint, Diagnosis, IntakeResult, Solution
 from .state import FAEState
@@ -75,10 +76,11 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
 
     def research_node(state: FAEState) -> dict[str, Any]:
         research = run_research(_complaint(state), _intake(state), gw)
-        return {
-            "research": research,
-            "log": [f"[조사] 문서 {len(research['evidence'])}건, 사례 {len(research['cases'])}건"],
-        }
+        facts = design_facts(_intake(state), research.get("part_card"), gw.call)
+        log = f"[조사] 문서 {len(research['evidence'])}건, 사례 {len(research['cases'])}건"
+        if facts:
+            log += f", 설계 점검 {len(facts)}건 ({', '.join(f['status'] for f in facts)})"
+        return {"research": research, "design_check": facts, "log": [log]}
 
     def diagnose_node(state: FAEState) -> dict[str, Any]:
         diagnosis = run_diagnose(
@@ -88,6 +90,7 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
             gw,
             previous=state.get("diagnosis"),
             qa=state.get("qa"),
+            design=state.get("design_check"),
         )
         top = diagnosis["hypotheses"][0]["cause"] if diagnosis["hypotheses"] else "없음"
         return {"diagnosis": diagnosis, "log": [f"[분석] 1순위 원인: {top}"]}
@@ -105,6 +108,7 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
             Diagnosis.model_validate(state["diagnosis"]),
             CheckReport.model_validate(state["check_report"]),
             previous_codes=(state.get("qa") or {}).get("issue_codes", []),  # 재분석이면 바로 앞 시도의 지적
+            design=state.get("design_check"),
         )
         retries = state.get("qa_retries", 0) + (0 if review.passed else 1)
         verdict = "통과" if review.passed else f"미통과 → {', '.join(review.issue_codes)}"

@@ -149,3 +149,21 @@ def test_calc_metrics_목록이_도구와_일치한다():
     assert set(CALC_METRICS) == set(CALC_TOOLS)
     assert "지표 pdiss_w, tj_c" in describe_test_tools()
     assert {"pdiss_w", "tj_c"} <= set(ldo_thermal_estimate(7.0, 3.3, 0.3, 25.0, 180.0))
+
+
+def test_buck_ripple_estimate_reports_on_time_and_conduction_mode():
+    r = calc.buck_ripple_estimate(12, 5, 4.7e-6, 150e3, 220e-6, esr_ohm=0.1, iout_a=2.0)
+    assert r["on_time_s"] == pytest.approx(5 / 12 / 150e3)
+    assert r["iout_crit_a"] == pytest.approx(r["delta_il_a"] / 2)  # 리플의 절반이 임계 부하 전류
+    assert r["dcm"] == 1 and "DCM" in r["mode"]  # 2 A < 2.07 A: 연속 모드 식의 전제가 깨진다
+    heavy = calc.buck_ripple_estimate(12, 5, 4.7e-6, 150e3, 220e-6, esr_ohm=0.1, iout_a=3.0)
+    assert heavy["dcm"] == 0 and heavy["mode"].startswith("CCM")
+    no_load = calc.buck_ripple_estimate(12, 5, 4.7e-6, 150e3, 220e-6)  # 부하를 모르면 모드는 판정하지 않는다
+    assert "dcm" not in no_load and "on_time_s" in no_load
+
+
+def test_prompt_example_of_buck_ripple_back_calculation_holds():
+    delta_il, fsw, target = 0.5, 300e3, 0.05
+    assert target / delta_il == pytest.approx(0.1)  # ESR ≤ ΔV / ΔIL
+    assert delta_il / (8 * fsw * target) == pytest.approx(4.2e-6, rel=0.01)  # 용량 성분만 볼 때 Cout ≥ ΔIL / (8 fsw ΔV)
+    assert 2 / (400e3 * 150e-9) == pytest.approx(33.3, rel=0.01)  # Vin ≤ Vout / (fsw × 최소 온타임)

@@ -120,6 +120,112 @@ def test_cross_check_flags_disagreement_and_ignores_different_conditions():
     assert cross_check_warnings(4.4721, 3.0, {**OPAMP_ARGS, "freq_hz": 100000}) == []
 
 
+def test_buck_switch_circuit_is_limited_to_bucks():
+    sim = step("spice.run_circuit", {"circuit": "buck_switch", "params": {}}, Bound(metric="ripple_v", max=0.05))
+    assert "test_mismatch" not in codes(BUCK, {}, diagnosis("x", sim))
+    assert "test_mismatch" in codes(LDO, {}, diagnosis("x", sim))
+    assert "test_mismatch" in codes(OPAMP, {}, diagnosis("x", sim))
+
+
+BUCK_ARGS = {"vin_v": 12, "vout_v": 5, "l_h": 33e-6, "fsw_hz": 150e3, "cout_f": 100e-6, "esr_ohm": 0.3, "iout_a": 1.0}
+CALC_OUT = {"delta_il_a": 0.589, "ripple_v": 0.1817}  # 평가 문의 L-02 조건의 연속 모드 계산
+SIM_OUT = {"delta_il_a": 0.613, "ripple_v": 0.1737, "dcm": 0, "converged": True, "assumed": {"vd_v": 0.4}}
+
+
+def buck_warnings(calc_out: dict, sim_out: dict, sim_args: dict | None = None) -> list[str]:
+    plan = [
+        step("calc.buck_ripple_estimate", BUCK_ARGS),
+        step("spice.run_circuit", {"circuit": "buck_switch", "params": sim_args or BUCK_ARGS}),
+    ]
+    results = [
+        StepResult(label="t", purpose="reproduce", tool=s.tool, status="pass", outputs=out)
+        for s, out in zip(plan, (calc_out, sim_out), strict=True)
+    ]
+    review = run_qa(intake(), {"part_card": BUCK}, diagnosis("x", *plan), CheckReport(status="pass", steps=results))
+    assert review.passed  # 교차 확인과 불연속 안내는 경고만 하고 재분석을 요구하지 않는다
+    return review.warnings
+
+
+def test_buck_cross_check_reports_agreement_within_tolerance():
+    found = [w for w in buck_warnings(CALC_OUT, SIM_OUT) if w.startswith("교차 확인")]
+    assert len(found) == 1 and "일치" in found[0] and "불일치" not in found[0]
+    assert "0.589 A" in found[0] and "0.613 A" in found[0] and "182 mV" in found[0]  # 유효숫자 3자리로 적는다
+
+
+def test_buck_cross_check_flags_large_gaps_and_names_the_diode_drop():
+    low_vout = {"delta_il_a": 0.268, "ripple_v": 0.0029}  # 28 V → 1.2 V: 다이오드 강하가 커서 전류 리플이 33 % 크다
+    calc = {"delta_il_a": 0.202, "ripple_v": 0.0030}
+    found = [w for w in buck_warnings(calc, {**SIM_OUT, **low_vout}) if w.startswith("교차 확인")]
+    assert len(found) == 1 and "불일치" in found[0] and "다이오드" in found[0]
+
+
+def test_buck_cross_check_flags_discontinuous_conduction_even_when_numbers_agree():
+    # L-03 사례: 계산과 시뮬레이션의 전류 리플은 거의 같지만 인덕터 전류가 0까지 내려간다
+    agreeing = {"delta_il_a": 4.13, "ripple_v": 0.40}
+    found = [w for w in buck_warnings({"delta_il_a": 4.137, "ripple_v": 0.429}, {**SIM_OUT, **agreeing, "dcm": 1})
+             if w.startswith("교차 확인")]  # fmt: skip
+    assert len(found) == 1 and "불일치" in found[0] and "불연속" in found[0] and "시뮬레이션 값을 쓰세요" in found[0]
+
+
+def test_buck_cross_check_ignores_different_conditions():
+    other = {**BUCK_ARGS, "l_h": 10e-6}
+    assert [w for w in buck_warnings(CALC_OUT, SIM_OUT, other) if w.startswith("교차 확인")] == []
+    no_esr = {k: v for k, v in BUCK_ARGS.items() if k != "esr_ohm"}  # 시뮬레이션에 ESR이 없으면 짝지을 수 없다
+    assert [w for w in buck_warnings(CALC_OUT, SIM_OUT, no_esr) if w.startswith("교차 확인")] == []
+
+
+def test_buck_notes_cover_dcm_calculation_nonconvergence_and_assumptions():
+    calc_dcm = {**CALC_OUT, "dcm": 1, "iout_crit_a": 0.295}
+    plan = [step("calc.buck_ripple_estimate", BUCK_ARGS)]
+    report = CheckReport(
+        status="pass", steps=[StepResult(label="t", purpose="reproduce", tool=plan[0].tool, status="pass", outputs=calc_dcm)]
+    )
+    review = run_qa(intake(), {"part_card": BUCK}, diagnosis("x", *plan), report)
+    assert any("불연속 전도 영역" in w and "0.295 A" in w for w in review.warnings)  # 계산만 있을 때
+
+    unconverged = {**SIM_OUT, "converged": False, "vout_error_pct": 3.2}
+    warnings = buck_warnings(CALC_OUT, unconverged)
+    assert any("수렴하지 않았습니다" in w and "3.2" in w for w in warnings)
+    assert any("가정했습니다" in w and "vd_v=0.4" in w for w in warnings)
+    given = {**BUCK_ARGS, "vd_v": 0.5}  # 고객이 준 값은 가정이 아니다
+    assert not any("가정했습니다" in w for w in buck_warnings(CALC_OUT, SIM_OUT, given))
+
+
+SYNC_BUCK = {**BUCK, "typical": {"rdson_high_ohm": 0.09, "rdson_low_ohm": 0.04}}  # 동기 벅 카드 (TPS62130A 같은 부품)
+
+
+def assumption_warnings(card: dict, steps: list[CheckStep], **conditions) -> list[str]:
+    review = run_qa(intake(**conditions), {"part_card": card}, diagnosis("x", *steps), EMPTY_REPORT)
+    assert review.passed  # 가정 경고는 재분석을 요구하지 않는다
+    return [w for w in review.warnings if "esr_ohm에 0" in w or "동기 벅" in w]
+
+
+def test_zero_esr_in_buck_tests_is_warned_when_the_customer_gave_no_esr():
+    ripple = step("calc.buck_ripple_estimate", {**BUCK_ARGS, "esr_ohm": 0.0}, purpose="info")
+    omitted = step("calc.buck_ripple_estimate", {k: v for k, v in BUCK_ARGS.items() if k != "esr_ohm"}, purpose="info")
+    sim = step("spice.run_circuit", {"circuit": "buck_switch", "params": {**BUCK_ARGS, "esr_ohm": 0}}, purpose="verify")
+    found = assumption_warnings(BUCK, [ripple, omitted, sim])
+    assert len(found) == 1 and "ESR을 무시" in found[0]  # 같은 문구는 한 번만
+
+
+def test_esr_warning_is_skipped_when_the_customer_gave_esr_or_a_real_value_is_used():
+    ripple = step("calc.buck_ripple_estimate", {**BUCK_ARGS, "esr_ohm": 0.005})
+    assert assumption_warnings(BUCK, [ripple]) == []
+    zero = step("calc.buck_ripple_estimate", {**BUCK_ARGS, "esr_ohm": 0.0})
+    assert assumption_warnings(BUCK, [zero], esr_ohm=0.0) == []  # 고객이 ESR을 알려 준 경우는 다른 규칙이 다룬다
+
+
+def test_synchronous_buck_simulation_without_vd_is_warned():
+    plain = step("spice.run_circuit", {"circuit": "buck_switch", "params": {**BUCK_ARGS, "esr_ohm": 0.005}})
+    found = assumption_warnings(SYNC_BUCK, [plain])
+    assert len(found) == 1 and "vd_v를 지정하지 않아" in found[0] and "rdson_low_ohm" in found[0]
+    with_vd = step(
+        "spice.run_circuit", {"circuit": "buck_switch", "params": {**BUCK_ARGS, "esr_ohm": 0.005, "vd_v": 0.11}}
+    )
+    assert assumption_warnings(SYNC_BUCK, [with_vd]) == []
+    assert assumption_warnings(BUCK, [plain]) == []  # 비동기 벅은 기본 다이오드 강하가 맞다
+
+
 def failing(tool: str, purpose: str, notes: str) -> StepResult:
     return StepResult(label="확인", purpose=purpose, tool=tool, status="fail", notes=notes)
 

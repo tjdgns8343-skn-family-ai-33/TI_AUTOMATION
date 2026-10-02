@@ -1,0 +1,77 @@
+# TI TPS62130A 3 A 동기 벅 컨버터. TPS6213x 계열(TPS62130, TPS62130A, TPS62131, TPS62132, TPS62133) 공용 데이터시트 SLVSAG7F(개정 F, 2021-11)에서 직접 옮김.
+# 이 문서의 절 번호는 7.x(사양), 8.x(상세 설명), 9.x(응용), 11.x(레이아웃)이고 쪽 번호는 PDF 쪽과 같다. 전기적 특성 표는 쪽 그림으로 최소/전형/최대 열을 확인했다.
+part_number: TPS62130A
+type: buck
+description: 3 A 동기 벅 (DCS-Control, 입력 3–17 V, 가변 출력 0.9–6 V, 2.5 MHz/1.25 MHz 선택, 경부하 절전 모드 자동 전환, IQ 17 µA). TPS62130A는 PG가 꺼짐·UVLO·열 차단일 때 Low이고 TPS62130은 하이 임피던스
+abs_max:                       # §7.1 p.4
+  vin_v: 20                    # AVIN, PVIN 최대 20 V (권장 최대는 17 V)
+  pin_logic_v: 7               # DEF, FSW, FB, PG, VOS 핀 최대 7 V — 이 핀들을 VIN(12 V 등)에 연결하면 절대 최대 초과
+  en_ss_tr_v_over_vin: 0.3     # EN, SS/TR, SW는 VIN + 0.3 V까지
+  pg_sink_ma: 10               # PG 싱크 전류 최대
+  tj_max_c: 150
+recommended:                   # §7.3 p.4
+  vin_min_v: 3
+  vin_max_v: 17
+  iout_max_a: 3.0              # p.1: 최대 3 A 연속 출력 전류 (출력 0.9–6 V)
+  tj_max_c: 125                # 권장 동작 접합 온도 −40~125 °C (§11.3 p.29도 최대 125 °C)
+typical:
+  vref_v: 0.8                  # §7.5 p.5: FB 기준 전압 800 mV (PWM 785.6–814.4 mV, 절전 모드 22 µF에서 781.6–822.4 mV). 출력 = 0.8 V × (1 + R1/R2)
+  output_v_min: 0.9            # §7.5 p.5: 가변 출력 범위 0.9–6.0 V (VIN ≥ VOUT)
+  output_v_max: 6.0
+  fsw_hz: 2.5e6                # §8.4.1 p.11: FSW=Low 약 2.5 MHz (VIN, VOUT, L에 따라 제어된 변동이 있음)
+  fsw_hz_low_setting: 1.25e6   # FSW=High 약 1.25 MHz
+  ton_fsw_low_ns_per_unit_duty: 400   # §8.4.2 p.11 식 (1): FSW=Low에서 tON ≈ VOUT/VIN × 400 ns (정상 상태 추정)
+  min_on_time_s: 80.0e-9       # §8.4.2 p.11: 아주 낮은 출력 전압에서 유지하는 절대 최소 온타임 약 80 ns (이때 동작 주파수가 공칭보다 낮아짐)
+  rdson_high_ohm: 0.09         # §7.5 p.5: 상단 MOSFET VIN ≥ 6 V 전형 90 mΩ (최대 170 mΩ), VIN = 3 V 전형 120 mΩ
+  rdson_high_ohm_max: 0.17
+  rdson_low_ohm: 0.04          # §7.5 p.5: 하단 MOSFET VIN ≥ 6 V 전형 40 mΩ (최대 70 mΩ), VIN = 3 V 전형 50 mΩ
+  rdson_low_ohm_max: 0.07
+  current_limit_a: 4.2         # §7.5 p.5: 상단 MOSFET 정적 전류 제한 VIN=12 V, 25 °C 최소 3.6 / 전형 4.2 / 최대 4.9 A
+  current_limit_a_min: 3.6
+  current_limit_a_max: 4.9
+  short_circuit_current_limit_a: 1.6   # §8.4.4 p.12: VOUT이 0.5 V 아래로 내려가면 전류 제한이 전형 1.6 A로 줄어듦 (기동 직후에도 0.5 V 아래면 같음, §8.3.2 p.9)
+  low_side_current_limit_a: 3.5        # §8.4.4 p.12: 하단 전류 제한 전형 3.5 A
+  current_limit_overshoot_ns: 30       # §8.4.4 p.12 식 (5): 동적 피크 = ILIMF + (VIN − VOUT)/L × 30 ns
+  uvlo_falling_v: 2.7          # §7.5 p.5: VIN 하강 시 최소 2.6 / 전형 2.7 / 최대 2.8 V, 히스테리시스 전형 200 mV
+  uvlo_hysteresis_v: 0.2
+  iq_a: 17.0e-6                # §7.5 p.5: 동작 정지 전류(스위칭 안 함) 전형 17 µA, 최대 30 µA (−40~85 °C 최대 25 µA)
+  shutdown_current_a: 1.5e-6   # §7.5 p.5: EN=Low 전형 1.5 µA, 최대 25 µA (−40~85 °C 최대 4 µA)
+  thermal_shutdown_c: 160      # §7.5 p.5: 전형 160 °C, 히스테리시스 전형 20 °C (복귀는 소프트 스타트부터)
+  thermal_shutdown_hysteresis_c: 20
+  en_high_guaranteed_v: 0.9    # §7.5 p.5: EN·DEF·FSW 입력 High로 보장되는 전압 0.9 V 이상 (전형 문턱 0.65 V)
+  en_low_guaranteed_v: 0.3     # Low로 보장되는 전압 0.3 V 이하 (전형 문턱 0.45 V). 0.3~0.9 V 사이는 보장되지 않음
+  ss_tr_source_current_a: 2.5e-6   # §7.5 p.5: SS/TR 충전 전류 최소 2.3 / 전형 2.5 / 최대 2.7 µA
+  ss_cap_formula: "CSS = tSS × 2.5 µA / 1.25 V"  # §9.2.2.2.2.3 p.16 식 (10). 예: 3.3 nF → tSS ≈ 1.65 ms (데이터시트 응용 회로 값)
+  ss_start_delay_s: 50.0e-6    # §8.3.2 p.9: EN 이후 스위칭 시작까지 약 50 µs 지연
+  pg_threshold_rising_pct: 95  # §7.5 p.5: PG 상승 문턱 최소 92 / 전형 95 / 최대 98 % VOUT
+  pg_threshold_falling_pct: 90 # 하강 문턱 최소 87 / 전형 90 / 최대 94 % VOUT
+  pg_sink_ma_spec: 2           # §8.3.3 p.10: 2 mA를 받으면서 Low 레벨(최대 0.3 V) 유지, 풀업 전압은 7 V 미만
+  fb_open_clamp_v: 7.4         # §9.2.2.1 p.14: FB가 열리면 VOS 쪽 출력을 약 7.4 V로 제한
+  fb_divider_max_r2_ohm: 400.0e3   # §9.2.2.1 p.14: 전류를 2 µA 이상 흘리도록 R2는 400 kΩ 이하 권장. R1 = R2 × (VOUT / 0.8 V − 1)
+  inductor_recommended_h: 2.2e-6   # §9.2.2.2 p.14: 표준값 2.2 µH. 1 µH까지 가능하지만 FSW=Low일 때만이고, FSW=High나 낮은 입력 전압에서는 2.2 µH 권장
+  inductor_min_h: 1.0e-6
+  cout_recommended_f: 22.0e-6  # §9.2.2.2.2.1 p.15: 권장 22 µF 세라믹(X7R/X5R). 허용 조합은 notes의 표 9-2 참조
+  cin_recommended_f: 10.0e-6   # §9.2.2.2.2.2 p.15: 입력 10 µF 세라믹 + AVIN~AGND 0.1 µF 필수
+  cavin_f: 0.1e-6
+  psm_boundary: "부하 전류 < ΔIL/2이면 절전 모드(PSM)"   # §9.2.2.2.1 p.15 식 (9)
+  vin_min_100pct_duty: "VIN(min) = VOUT + IOUT × (RDS(on) + RL)"   # §8.4.3 p.12 식 (3): 100 % 듀티 동작의 최소 입력
+thermal:                       # §7.4 p.4
+  theta_ja_c_per_w: 45         # RGT(VQFN-16) 접합-주변. JEDEC 조건이라 실제 기판과 다를 수 있음
+  theta_jc_bottom_c_per_w: 4.5
+  theta_jb_c_per_w: 17.4
+notes:
+  - 동기 방식이라 외부 캐치 다이오드가 필요 없다 (하단 MOSFET이 대신 켜진다). 비동기 벅(TPS54331, LM2596)과 다르다.
+  - 'FSW 핀: Low ≈ 2.5 MHz, High ≈ 1.25 MHz. 이 핀의 절대 최대는 7 V(§7.1 p.4)라서 12 V 같은 입력 전압(VIN)에 직접 연결하면 절대 최대를 넘는다. 데이터시트는 High로 쓸 때 VOUT 또는 PG에 연결하라고 적고 (§6 p.3 각주 2, §8.3.5 p.11), 기동은 반드시 FSW=Low로 시작해야 돌입 전류가 제한된다 (§8.3.5 p.11). 낮은 주파수(1.25 MHz)에서 리플을 낮추고 전체 출력 전류를 내려면 인덕터 2.2 µH 이상을 권장한다 (§8.3.5 p.11, §9.2.2.2 p.14).'
+  - 'DEF 핀(출력 +5 %)도 절대 최대 7 V라서 "VOUT 또는 PG에 연결하고 VIN에는 연결하지 말라"고 적혀 있다 (§8.3.4 p.10 각주 1). EN, DEF, FSW는 내부에 약 400 kΩ 풀다운이 있어 처음 Low로 둔 뒤 띄우면 Low를 유지한다. EN은 외부에서 반드시 High 또는 Low로 정해야 한다 (§8.3.1 p.9).'
+  - '표 9-2(§9.2.2.2 p.14) 안정성이 시뮬레이션과 실험으로 확인된 LC 조합 (공칭 값, 유효 용량 +20 %/−50 % 고려): 1 µH는 22·47·100·200 µF, 2.2 µH는 10·22(표준값)·47·100·200 µF, 3.3 µH는 10·22·47·100 µF. 0.47 µH와 4.7 µH는 확인된 조합이 없다. 다른 조합은 응용마다 확인해야 한다.'
+  - 세라믹 커패시터는 DC 바이어스로 유효 용량이 크게 줄 수 있다 (§9.2.2.2.2.3 p.16 주). 표 9-2는 유효 용량이 +20 %/−50 % 변하는 것을 가정한 공칭 값이다.
+  - '소프트 스타트: SS/TR을 비우거나 아주 작은 커패시터를 달면 가장 빠르게 기동한다 (§8.3.2 p.9). 시작 지연 약 50 µs 뒤 SS/TR 전압에 따라 출력이 오른다. 출력이 0.5 V 아래인 동안은 전류 제한이 전형 1.6 A로 낮다. 프리바이어스(미리 전압이 있는 출력) 기동이 가능하다.'
+  - 'PG: 오픈 드레인(풀업 필요, 7 V 미만). TPS62130은 EN·UVLO·열 차단일 때 하이 임피던스, TPS62130A는 Low (§8.3.3 p.10 표 8-1·8-2). 사용하지 않으면 GND에 연결하거나 띄워도 된다.'
+  - 'PWM 대 절전 모드: 부하 전류가 인덕터 리플 전류의 절반보다 크면 연속 전도 PWM, 작으면 절전 모드로 자동 전환되고 스위칭 주파수가 부하 전류에 따라 선형으로 낮아진다 (§8.4.1·8.4.2 p.11). 절전 모드의 출력 리플은 출력 커패시터, ESR, 피크 인덕터 전류에 달려 있다 (§9.2.2.2.2.1 p.15 주). 절전 모드 피크 전류 ILPSM(peak) ≈ (VIN − VOUT)/L × tON (식 2). VIN이 VOUT보다 약 15 % 높은 수준까지 내려가면 부하와 무관하게 PWM만 쓴다.'
+  - '전류 제한: 상단 정적 제한 3.6~4.9 A. 내부 전파 지연 때문에 실제 피크는 이보다 높을 수 있고, 인덕턴스가 작고 입력 전압이 높을수록 크다 (§8.4.4 p.12 식 4, 5). 제한에 걸리면 상단 FET를 끄고 하단 FET로 전류를 줄인 뒤 하단 전류가 하단 제한(전형 3.5 A) 아래로 내려가야 다시 켠다.'
+  - '인덕터 리플 전류와 최대 전류: ΔIL = VOUT × (1 − VOUT/VIN(max)) / (L(min) × fSW), IL(max) = IOUT(max) + ΔIL/2 (§9.2.2.2.1 p.14-15 식 7, 8). 인덕터 포화 전류는 계산한 최대 전류에 약 20 % 여유를 두라고 권장한다.'
+  - '출력이 설정값 부근에서 안 오르면 100 % 듀티 동작을 확인한다: VIN이 VOUT + IOUT × (RDS(on) + 인덕터 DCR)보다 낮으면 출력이 유지되지 않는다 (§8.4.3 p.12 식 3).'
+  - '레이아웃: AGND와 PGND는 노출 패드와 같은 그라운드에 직접 연결해야 하고 노출 패드는 납땜해야 한다. VOS는 출력 커패시터에서 가장 짧게 연결하되 VOUT 전원 배선과 분리한다. FB, VOS, SS/TR 커패시터, AVIN 0.1 µF은 IC 가까이에 둔다 (§11.1 p.28).'
+  - '(데이터시트 값으로 계산한 추정) FSW=Low의 고정 온타임 식 tON = VOUT/VIN × 400 ns는 듀티 D = VOUT/VIN에서 주기 400 ns, 즉 2.5 MHz와 같다.'
+  - '(프로젝트 시뮬레이션 모델 참고, 데이터시트 내용이 아님) circuits/buck_switch.cir는 비동기(다이오드) 벅의 연속·불연속 동작만 다룬다. 이 부품에 쓰려면 다이오드 순방향 전압 vd_v를 하단 MOSFET의 전압 강하(약 IOUT × 0.04 Ω)처럼 작은 값으로 지정해야 하고, 절전 모드(PSM)·DCS-Control의 가변 주파수·전류 제한 동작은 모델에 없다.'
+source: "TPS6213x 데이터시트 SLVSAG7F (개정 F, 2021-11): p.1 특징, §6 p.3, §7.1·7.3·7.4 p.4, §7.5 p.5, §8.3.1–8.3.7 p.9–11, §8.4.1–8.4.4 p.11–12, §9.2.2.1–9.2.2.4 p.14–18, §11.1·11.3 p.28–29"

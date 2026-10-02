@@ -19,6 +19,7 @@ def _technical_reply(
     diagnosis: Diagnosis,
     report: CheckReport,
     research: dict[str, Any],
+    design: list[dict[str, Any]] | None = None,
 ) -> str:
     parts = ", ".join(intake.part_numbers) or "문의 부품"
     lines = [f"{complaint.customer}님, 안녕하세요.", f"문의하신 {parts} 건 검토 결과를 안내드립니다.", ""]
@@ -33,6 +34,9 @@ def _technical_reply(
     if diagnosis.solution:
         lines += ["", "■ 권장 조치", f"- {diagnosis.solution.summary}"]
         lines += [f"- {c.target}: {c.before} → {c.after}" for c in diagnosis.solution.changes]
+    notable = [f for f in design or [] if f["status"] not in ("ok", "skipped")]
+    if notable:
+        lines += ["", "■ 설계 점검 (코드 계산)"] + [f"- {f['text']}" for f in notable]
     if report.steps:
         lines += ["", "■ 계산·시뮬레이션 확인"]
         lines += [f"- {s.label}: {STATUS_KO[s.status]} ({s.notes})" for s in report.steps]
@@ -82,7 +86,12 @@ def _simple_reply(complaint: Complaint, route: str) -> str:
 
 
 def _internal_note(
-    intake: IntakeResult, qa: QAReview | None, retries: int, revise_comment: str, rating: dict[str, Any] | None = None
+    intake: IntakeResult,
+    qa: QAReview | None,
+    retries: int,
+    revise_comment: str,
+    rating: dict[str, Any] | None = None,
+    design: list[dict[str, Any]] | None = None,
 ) -> str:
     lines = [f"경로: {intake.route} / 긴급도: {intake.urgency}"]
     if rating:  # 품질 클레임 경로의 정격 점검 결과 (고객이 알려 준 값 기준)
@@ -90,6 +99,7 @@ def _internal_note(
             lines.append("- 경고: 정격 점검을 하지 못했습니다 (부품 카드 없음). 사람이 데이터시트로 확인해야 합니다.")
         lines += [f"- 정격 점검: {text} (절대 최대 초과, 사용 조건 문제 가능성이 높아 불량 클레임 신뢰도 낮음)" for text in rating.get("abs_over", [])]
         lines += [f"- 정격 점검: {text} (권장 범위 밖)" for text in rating.get("rec_over", [])]
+    lines += [f"- 설계 점검 [{f['status']}]: {f['text']}" for f in design or [] if f["status"] != "ok"]
     if qa:
         lines.append(f"검수: {'통과' if qa.passed else '미통과'} (재분석 {retries}회)")
         lines += [f"- 지적: {i}" for i in qa.issues]
@@ -113,10 +123,11 @@ def run_respond(state: dict[str, Any]) -> ResponseDraft:
     review = state.get("review") or {}
     revise_comment = review.get("comment", "") if review.get("action") == "revise" else ""
     rating = state.get("rating_check")
-    note = _internal_note(intake, qa, state.get("qa_retries", 0), revise_comment, rating)
+    design = state.get("design_check")
+    note = _internal_note(intake, qa, state.get("qa_retries", 0), revise_comment, rating, design)
 
     if is_llm_mode():
-        keys = ("intake", "research", "diagnosis", "check_report", "qa", "cpr", "rating_check")
+        keys = ("design_check", "intake", "research", "diagnosis", "check_report", "qa", "cpr", "rating_check")
         payload = {key: state.get(key) for key in keys}
         payload = strip_waveforms(payload)  # 시뮬레이션 파형은 숫자가 많아 프롬프트(12000자 제한)를 채우므로 뺀다
         user = (
@@ -128,7 +139,7 @@ def run_respond(state: dict[str, Any]) -> ResponseDraft:
         return draft
 
     if intake.route == "fae" and diagnosis and intake.category == "technical":
-        reply = _technical_reply(complaint, intake, diagnosis, report, state.get("research") or {})
+        reply = _technical_reply(complaint, intake, diagnosis, report, state.get("research") or {}, design)
     elif intake.route == "cpr" and cpr:
         reply = _cpr_reply(complaint, cpr, rating)
     else:
