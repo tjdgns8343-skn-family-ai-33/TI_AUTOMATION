@@ -14,7 +14,7 @@ recommended:                   # §5.3 p.5 — LM358/LM358A 열
   ta_min_c: 0
   ta_max_c: 70                 # LM358/LM358A의 동작 주변 온도는 0~70 °C (LM358B는 −40~85 °C)
 typical:                       # §5.7 p.10 (VS=5 V, TA=25 °C, 채널당)
-  gbw_hz: 0.7e6
+  gbw_hz: 0.7e+6
   slew_rate_v_per_us: 0.3      # G=+1
   open_loop_gain_db: 100       # 전형 100 V/mV(=100 dB), 최소 25 V/mV(=88 dB) (VS=15 V, RL ≥ 2 kΩ)
   vos_typ_mv: 3

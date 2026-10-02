@@ -155,12 +155,28 @@ def test_format_facts_lists_kind_and_status():
 
 def test_prompt_example_of_the_inductor_back_calculation_holds():
     vin, vout, fsw, iout, limit = 15.0, 5.0, 1e6, 2.0, 3.0
-    max_ripple = 2 * (0.9 * limit - iout)
-    assert max_ripple == pytest.approx(1.4)
+    max_ripple = 2 * (limit - iout)
+    assert max_ripple == pytest.approx(2.0)
     l_min = vout * (1 - vout / vin) / (fsw * max_ripple)
-    assert l_min == pytest.approx(2.4e-6, rel=0.01)
-    r = calc.buck_ripple_estimate(vin, vout, l_min, fsw, 22e-6, 0.0, iout)
-    assert r["il_max_a"] == pytest.approx(0.9 * limit)  # 이 L이면 최대 전류가 제한의 90 %가 된다
+    assert l_min == pytest.approx(1.67e-6, rel=0.01)
+    at_limit = calc.buck_ripple_estimate(vin, vout, l_min, fsw, 22e-6, 0.0, iout)
+    assert at_limit["il_max_a"] == pytest.approx(limit)  # 이 L이면 최대 전류가 제한과 같아진다
+    standard = calc.buck_ripple_estimate(vin, vout, 2.2e-6, fsw, 22e-6, 0.0, iout)  # 표준값 2.2 µH
+    assert standard["il_max_a"] == pytest.approx(2.76, abs=0.005)
+    assert limit - standard["il_max_a"] == pytest.approx(0.24, abs=0.005)
+
+
+def test_recommended_inductor_passes_the_verify_limit_of_the_card_minimum():
+    """D-1b 재측정: 데이터시트 권장 2.2 µH가 0.9배 여유율 규칙에 걸려 세 번 실패했다. 제한 최소값 그대로면 통과한다."""
+    from fae_agent.agents.checker import evaluate
+    from fae_agent.schemas import Bound, CheckStep
+
+    outputs = calc.buck_ripple_estimate(12, 3.3, 2.2e-6, 1.25e6, 22e-6, 0.032, 2.8)
+    step = CheckStep(label="전류 제한 여유", purpose="verify", tool="calc.buck_ripple_estimate",
+                     expect=[Bound(metric="il_max_a", max=3.6)])  # fmt: skip
+    status, notes = evaluate(step, outputs)
+    assert status == "pass" and "il_max_a=3.235" in notes
+    assert 3.6 - outputs["il_max_a"] == pytest.approx(0.365, abs=0.001)  # 답변에 쓸 여유
 
 
 def test_d1_case_numbers_match_the_design_check():

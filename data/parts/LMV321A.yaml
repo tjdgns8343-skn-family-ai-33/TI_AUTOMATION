@@ -12,7 +12,7 @@ recommended:                   # §5.3 p.5
   ta_min_c: -40
   ta_max_c: 125
 typical:                       # §5.7 p.7 (VS=5 V 부근, TA=25 °C, RL=10 kΩ)
-  gbw_hz: 1.0e6
+  gbw_hz: 1.0e+6
   slew_rate_v_per_us: 1.7
   phase_margin_deg: 76         # VS=5.5 V, G=+1 (부하 용량 조건은 표에 명시되지 않음)
   vos_typ_mv: 1

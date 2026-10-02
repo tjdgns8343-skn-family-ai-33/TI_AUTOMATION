@@ -75,9 +75,11 @@ DIAGNOSE_SYSTEM = """너는 반도체 회사의 FAE(현장 응용 엔지니어)�
      · '설계 점검'의 current_limit은 코드가 계산한 값이다. status가 exceeds_min이면 전류 제한(인덕터 최대 전류가 카드의 최소 전류
        제한 이상)을 원인 가설에 반드시 넣고 그 숫자(il_max_a, 제한값, 제한이 시작되는 부하)를 mechanism에 그대로 쓴다. reproduce는
        buck_ripple_estimate(iout_a 포함)의 il_max_a에 min=카드의 current_limit_a_min을 쓴다. verify는 바꾼 값으로 il_max_a에
-       max=0.9 × 제한 최소값을 쓴다. 필요한 인덕터는 역산한다: Iout + ΔIL/2 ≤ 0.9 × I제한이므로 ΔIL ≤ 2 × (0.9 × I제한 − Iout),
-       L ≥ Vout × (1 − Vout/Vin) / (fsw × ΔIL 최대). 예) Vin 15 V, Vout 5 V, 1 MHz, Iout 2 A, 제한 최소 3 A → ΔIL ≤ 1.4 A →
-       L ≥ 2.4 µH.
+       max=카드의 current_limit_a_min 그대로를 쓴다 (그 아래면 전류 제한이 걸리지 않는다. 0.9배 같은 여유율을 곱해 더 엄격하게
+       쓰지 않는다). 남는 여유(제한 − il_max_a)는 답변에 숫자로 쓴다. 필요한 인덕터는 역산한다: Iout + ΔIL/2 < I제한이므로
+       ΔIL < 2 × (I제한 − Iout), L > Vout × (1 − Vout/Vin) / (fsw × ΔIL 최대). 데이터시트가 권장하는 인덕터 값(카드의
+       inductor_recommended_h 등)이 이 조건을 만족하면 그 값을 쓴다. 예) Vin 15 V, Vout 5 V, 1 MHz, Iout 2 A, 제한 최소 3 A →
+       ΔIL < 2 A → L > 1.67 µH (표준값 2.2 µH면 최대 전류 2.76 A로 0.24 A 여유).
      · 결과의 ripple_ratio(ΔIL / 부하 전류)는 보통 0.2~0.4다. 1에 가깝거나 넘으면 인덕터가 너무 작다. dcm=1이면 부하가 가벼워
        인덕터 전류가 0까지 내려가는 불연속 전도라서 연속 모드 계산식의 리플 값이 맞지 않으니, 답변에는 buck_switch의 값을 쓴다.
      · 리플이 크지 않은데 스위칭이 불안정하다는 문의는 최소 온타임을 의심한다. buck_ripple_estimate의 on_time_s(= 듀티 / fsw)가

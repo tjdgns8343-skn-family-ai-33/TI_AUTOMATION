@@ -18,8 +18,8 @@ typical:
   vref_v: 0.8                  # §7.5 p.5: FB 기준 전압 800 mV (PWM 785.6–814.4 mV, 절전 모드 22 µF에서 781.6–822.4 mV). 출력 = 0.8 V × (1 + R1/R2)
   output_v_min: 0.9            # §7.5 p.5: 가변 출력 범위 0.9–6.0 V (VIN ≥ VOUT)
   output_v_max: 6.0
-  fsw_hz: 2.5e6                # §8.4.1 p.11: FSW=Low 약 2.5 MHz (VIN, VOUT, L에 따라 제어된 변동이 있음)
-  fsw_hz_low_setting: 1.25e6   # FSW=High 약 1.25 MHz
+  fsw_hz: 2.5e+6                # §8.4.1 p.11: FSW=Low 약 2.5 MHz (VIN, VOUT, L에 따라 제어된 변동이 있음)
+  fsw_hz_low_setting: 1.25e+6   # FSW=High 약 1.25 MHz
   ton_fsw_low_ns_per_unit_duty: 400   # §8.4.2 p.11 식 (1): FSW=Low에서 tON ≈ VOUT/VIN × 400 ns (정상 상태 추정)
   min_on_time_s: 80.0e-9       # §8.4.2 p.11: 아주 낮은 출력 전압에서 유지하는 절대 최소 온타임 약 80 ns (이때 동작 주파수가 공칭보다 낮아짐)
   rdson_high_ohm: 0.09         # §7.5 p.5: 상단 MOSFET VIN ≥ 6 V 전형 90 mΩ (최대 170 mΩ), VIN = 3 V 전형 120 mΩ
@@ -47,7 +47,7 @@ typical:
   pg_threshold_falling_pct: 90 # 하강 문턱 최소 87 / 전형 90 / 최대 94 % VOUT
   pg_sink_ma_spec: 2           # §8.3.3 p.10: 2 mA를 받으면서 Low 레벨(최대 0.3 V) 유지, 풀업 전압은 7 V 미만
   fb_open_clamp_v: 7.4         # §9.2.2.1 p.14: FB가 열리면 VOS 쪽 출력을 약 7.4 V로 제한
-  fb_divider_max_r2_ohm: 400.0e3   # §9.2.2.1 p.14: 전류를 2 µA 이상 흘리도록 R2는 400 kΩ 이하 권장. R1 = R2 × (VOUT / 0.8 V − 1)
+  fb_divider_max_r2_ohm: 400.0e+3   # §9.2.2.1 p.14: 전류를 2 µA 이상 흘리도록 R2는 400 kΩ 이하 권장. R1 = R2 × (VOUT / 0.8 V − 1)
   inductor_recommended_h: 2.2e-6   # §9.2.2.2 p.14: 표준값 2.2 µH. 1 µH까지 가능하지만 FSW=Low일 때만이고, FSW=High나 낮은 입력 전압에서는 2.2 µH 권장
   inductor_min_h: 1.0e-6
   cout_recommended_f: 22.0e-6  # §9.2.2.2.2.1 p.15: 권장 22 µF 세라믹(X7R/X5R). 허용 조합은 notes의 표 9-2 참조
