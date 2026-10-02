@@ -104,7 +104,7 @@ python -m fae_agent.cli run --file data/samples/complaint_ldo_overheating.txt --
 
 - Windows에서는 `.env` 없이도 동작하고, 설정을 바꾸려면 `copy .env.example .env` 후 편집합니다.
 - `run`은 사람 승인 단계에서 멈추고 승인(a) / 수정 요청(r) / 반려(x)를 묻습니다. 입력을 줄 수 없는 곳에서는 `--decision a`, `--decision r,a --comment "..."`, `--decision x`를 붙입니다.
-- 테스트는 코어 146개입니다. ngspice가 없으면 시뮬레이션 관련 19개는 건너뛰고 나머지 127개가 통과합니다. 백엔드 테스트 15개는 `cd backend && python -m pytest`로 실행합니다 (Redis·Postgres 없이).
+- 테스트는 코어 149개입니다. ngspice가 없으면 시뮬레이션 관련 19개는 건너뛰고 나머지 130개가 통과합니다. 백엔드 테스트 15개는 `cd backend && python -m pytest`로 실행합니다 (Redis·Postgres 없이).
 - LLM 모드(`FAE_MODE=llm`)에서는 `run`·`eval`이 모델을 불러 요금이 나가므로 `--allow-llm`을 붙여야 실행됩니다 (안 붙이면 거부).
 - 다른 명령: `python -m fae_agent.cli eval`(평가셋 전체를 자동 승인으로 실행), `ingest`(문서 색인 다시 만들기), `tickets`(처리한 티켓 목록).
 - Streamlit 개발 화면: `streamlit run app/streamlit_app.py`
@@ -152,7 +152,7 @@ frontend/             React(Vite, TypeScript) 화면: 진행 단계, 승인, 시
 docker/, docker-compose*.yml   이미지와 전체 스택 (llm 모드는 별도 덮어쓰기 파일)
 circuits/             ngspice 회로 템플릿 (lc_load_step, opamp_ac, buck_switch)
 data/parts/           부품 스펙 카드 (실제 6종 + 가상 3종, 데이터시트 쪽수 표기)
-data/eval/            평가 문의 57건 (실제 부품 50 + 가상 부품 7, 정답과 데이터시트 근거 포함). 벅 스위칭 5건은 측정하지 않았고 TPS62130A 복합 문의 1건(D-1)은 1회 측정
+data/eval/            평가 문의 61건 (실제 부품 54 + 가상 부품 7, 정답과 데이터시트 근거 포함). 벅 스위칭 5건은 측정하지 않았고, 어려운 복합 문의 5건은 각각 1회 측정 ([결과](docs/hard_cases_2026-10-02.md))
 data/samples/         데모 문의와 가상 문서
 docs/                 설계 문서, 검증·진행 보고서, docs/feasibility/ 실행기와 원자료
 tests/                코어 pytest
@@ -179,4 +179,4 @@ tests/                코어 pytest
 
 ## 문서
 
-[아키텍처와 검수 규칙](docs/architecture.md) · [범위](docs/scope.md) · [데이터 이용 원칙](docs/data_policy.md) · [기획안](docs/proposal.md) · [가능성 검증 보고서](docs/feasibility_report.md) · [진행 보고서](docs/progress_report_2026-09-30.md) · [개선 로드맵](docs/roadmap.md)
+[아키텍처와 검수 규칙](docs/architecture.md) · [범위](docs/scope.md) · [데이터 이용 원칙](docs/data_policy.md) · [기획안](docs/proposal.md) · [가능성 검증 보고서](docs/feasibility_report.md) · [진행 보고서](docs/progress_report_2026-09-30.md) · [어려운 문의 측정](docs/hard_cases_2026-10-02.md) · [개선 로드맵](docs/roadmap.md)
