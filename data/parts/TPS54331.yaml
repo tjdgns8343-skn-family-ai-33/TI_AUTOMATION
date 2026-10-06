@@ -14,6 +14,7 @@ typical:
   vref_v: 0.8                  # §6.5 p.5: 기준 전압 (0.772–0.828 V). VSENSE 분압으로 출력 설정, 출력은 0.8 V까지 낮출 수 있음
   fsw_hz: 570000               # §6.6 p.6: VIN=12 V, 25 °C 전형 570 kHz (456–684 kHz)
   min_on_time_s: 130.0e-9      # §6.6 p.6: 최소 제어 가능 온타임 전형 105 ns / 최대 130 ns (VIN=12 V, 25 °C)
+  min_on_time_typ_s: 105.0e-9  # 같은 표의 전형값 (설계 점검이 전형·최대와 비교)
   max_duty: 0.90               # §6.6 p.6: 최대 듀티 최소 90 % (전형 93 %), BOOT-PH=6 V
   rdson_ohm: 0.08              # §6.5 p.5: BOOT-PH=6 V, VIN=12 V 전형 80 mΩ (최대 150 mΩ). VIN=3.5 V(BOOT-PH=3 V)는 115 mΩ
   current_limit_a: 5.8         # §6.5 p.5: 전류 제한 문턱 VIN=12 V 전형 5.8 A, 최소 3.5 A (최대 값 없음)
@@ -23,6 +24,10 @@ typical:
   shutdown_current_a: 1.0e-6   # §6.5 p.5: EN=0 V, VIN=12 V 전형 1 µA (최대 4 µA)
   quiescent_current_a: 110.0e-6   # §6.5 p.5: 비스위칭 동작 전류 전형 110 µA (최대 190 µA)
   ss_charge_current_a: 2.0e-6  # §6.5 p.5: SS 핀 충전 전류 2 µA
+  ss_ramp_v: 0.8               # §7.3.5 p.11 식 (3): TSS(ms) = CSS(nF) × VREF(V) / ISS(µA) (10 %→90 % 시간), VREF 0.8 V
+  ss_time_min_s: 1.0e-3        # §7.3.5 p.11: 소프트 스타트 시간은 1~10 ms 사이로 잡아야 한다
+  ss_time_max_s: 10.0e-3
+  ss_cap_max_f: 27.0e-9        # §7.3.5 p.11: SS 커패시터는 27 nF를 넘으면 안 된다
   eco_mode_switch_current_a: 0.16   # §6.5 p.5: 피크 인덕터 전류가 160 mA 아래면 펄스 스키핑 (경부하 효율용)
   error_amp_gm_umho: 92        # §6.5 p.5: 전달컨덕턴스, DC 이득 800 V/V, 단위이득 대역폭 2.7 MHz
   thermal_shutdown_c: 165      # §6.5 p.5

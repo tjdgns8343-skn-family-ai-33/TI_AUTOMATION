@@ -8,7 +8,8 @@
 - rating_false_claim: 고객 값이 한계를 넘지 않는데 원인 가설 제목에 '정격 초과'를 쓴 경우
 - tests_dropped: 테스트 오류로 되돌려진 재분석이 오류를 고치지 않고 테스트를 모두 뺀 경우 (그 부품에 쓸 도구가 있을 때)
 - trivial_test: 기대 범위가 어떤 값이나 통과하는 테스트 (gain_ratio를 0~1 전체로 두는 것처럼)
-- design_not_addressed: 코드가 계산한 설계 점검(인덕터 최대 전류가 전류 제한 최소값 이상)을 원인 가설이 다루지 않은 경우
+- design_not_addressed: 코드가 계산한 설계 점검 중 원인으로 봐야 할 상태(design_check.COVERAGE: 전류 제한 초과, 소프트 스타트
+  범위 이탈, 최소 온타임 미달, LDO 열 차단 등)를 원인 가설이 다루지 않은 경우
 값 대조(check_value)가 실패하면 지적문에 합격 범위 방향 힌트를 붙인다 (방향을 틀려 3번 재분석하고도 못 고친 사례가 있었다).
 경고만 하는 것: 같은 조건의 연산증폭기·벅 리플 계산과 시뮬레이션 결과 대조(일치 또는 불일치), 불연속 전도 안내, 테스트 구성,
 고객 조건과 다른 값을 쓴 재현·참고 계산, 일부만 무의미한 기대 범위, 벅 계산의 ESR 0 입력과 동기 벅의 다이오드 강하 기본값.
@@ -20,6 +21,7 @@ import math
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from ..design_check import missing_causes
 from ..ratings import rating_facts
 from ..schemas import CheckReport, CheckStep, Diagnosis, IntakeResult, QAReview
 
@@ -69,8 +71,6 @@ ARG_TO_CONDITION = {
 CONDITION_TOLERANCE = 0.01
 
 RATING_WORDS = ("정격", "절대 최대", "절대최대")
-# 전류 제한을 다루는 가설인지 보는 낱말 (design_check의 current_limit이 최소 제한을 넘었을 때)
-CURRENT_LIMIT_WORDS = ("전류 제한", "전류제한", "current limit", "과전류", "피크 전류", "최대 전류")
 # 이전 시도가 테스트 문제로 되돌려졌음을 뜻하는 검수 지적 코드 (다음 시도가 테스트를 빼면 tests_dropped)
 TEST_TROUBLE_CODES = {"test_error", "tests_dropped"}
 
@@ -385,13 +385,14 @@ def _check_design(
     add: Callable[[str, str], None],
     warnings: list[str],
 ) -> None:
-    """코드가 계산한 설계 점검(design_check)을 검수에 반영한다. 전류 제한 초과를 가설이 놓치면 되돌려 보낸다."""
-    hypotheses = " ".join(f"{h.cause} {h.mechanism}" for h in diagnosis.hypotheses).lower()
-    covered = any(word in hypotheses for word in CURRENT_LIMIT_WORDS)
+    """코드가 계산한 설계 점검(design_check)을 검수에 반영한다. 원인으로 봐야 할 상태(COVERAGE)를 가설이 놓치면 되돌려 보낸다."""
+    hypotheses = " ".join(f"{h.cause} {h.mechanism}" for h in diagnosis.hypotheses)
+    missing = {id(fact): rule for fact, rule in missing_causes(design, hypotheses)}
     for fact in design or []:
-        if fact["kind"] == "current_limit" and fact["status"] == "exceeds_min" and not covered:
-            message = f"{fact['text']} 그런데 원인 가설에 전류 제한이 없습니다. 이 숫자를 가설과 테스트에 쓰세요."
-            add("design_not_addressed", message)
+        rule = missing.get(id(fact))
+        if rule:
+            title = rule[0]
+            add("design_not_addressed", f"{fact['text']} 그런데 원인 가설에 '{title}' 내용이 없습니다. 이 숫자를 가설과 테스트에 쓰세요.")
         else:
             warnings.append(f"설계 점검: {fact['text']}")
 

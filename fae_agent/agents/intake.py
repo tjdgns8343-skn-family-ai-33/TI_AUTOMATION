@@ -53,18 +53,25 @@ CONDITION_PATTERNS: list[tuple[str, str, float]] = [
     # 잰 리플만 읽는다: 규격·목표 값("리플 규격 10mV 이하")은 건너뛴다
     ("ripple_meas_v", rf"(?:리플|\bripple)(?:(?!규격|목표|요구|\bspec)[^0-9\n.]){{0,24}}?{_NUM}\s*mv(?!\s*(?:이하|이내|미만|이상))", 1e-3),
     ("iout_a", rf"(?:\biout|\bload|부하(?:\s*전류)?|출력\s*전류)\s*{_P}\s*{_NUM}\s*a(?![a-z])", 1.0),
-    ("ta_c", rf"(?:\bta|주변\s*온도|\bambient)\s*{_P}\s*(-?\d+(?:\.\d+)?)\s*°?\s*c(?![a-z])", 1.0),
+    ("ta_c", rf"(?:\bta|주변\s*온도|\bambient)\s*{_P}\s*(-?\d+(?:\.\d+)?)\s*(?:°?\s*c(?![a-z])|도)", 1.0),
     ("fsw_hz", rf"(?:\bfsw|스위칭\s*주파수)\s*{_P}\s*{_NUM}\s*khz", 1e3),
     ("cout_f", rf"(?:\bcout|출력\s*커패시터|출력\s*캡)\s*{_P}\s*{_NUM}\s*[uµμ]f", 1e-6),
     ("esr_ohm", rf"\besr\s*{_P}\s*{_NUM}\s*m(?:ohm|ω)", 1e-3),
     ("l_h", rf"(?:인덕터|\binductor)\s*{_P}\s*{_NUM}\s*[uµμ]h", 1e-6),
-    ("vdd_v", rf"\bvdd\s*{_P}\s*{_NUM}\s*v(?![a-z])", 1.0),
+    ("vdd_v", rf"(?:\bvdd|전원(?:\s*전압)?)\s*{_P}\s*{_NUM}\s*v(?![a-z])", 1.0),
     ("pullup_ohm", rf"(?:풀업|\bpull-?up)(?:\s*저항)?\s*{_P}\s*{_NUM}\s*k", 1e3),
     ("cb_f", rf"(?:버스\s*커패시턴스|\bbus\s*capacitance|\bcb)\s*{_P}\s*(?:약\s*)?{_NUM}\s*pf", 1e-12),
+    ("css_f", rf"(?:\bss\s*핀|\bss\s*커패시터|소프트\s*스타트\s*커패시터|\bcss)(?:[^0-9\n.]){{0,12}}?{_NUM}\s*nf", 1e-9),
+    ("css_f", rf"(?:\bss\s*핀|\bss\s*커패시터|소프트\s*스타트\s*커패시터|\bcss)(?:[^0-9\n.]){{0,12}}?{_NUM}\s*[uµμ]f", 1e-6),
+    ("rf_ohm", rf"(?:피드백\s*저항|\brf)\s*{_P}\s*{_NUM}\s*k", 1e3),
+    ("rg_ohm", rf"(?:접지\s*쪽\s*저항|\brg)\s*{_P}\s*{_NUM}\s*k", 1e3),
+    ("tcase_meas_c", rf"(?:칩\s*표면|케이스\s*온도|표면\s*온도)[^0-9\n.]{{0,16}}?{_NUM}\s*(?:도|°\s*c)", 1.0),
     ("r_top_ohm", rf"상단\s*{_P}\s*{_NUM}\s*k", 1e3),
     ("r_bottom_ohm", rf"하단\s*{_P}\s*{_NUM}\s*k", 1e3),
 ]
 NOT_PARTS = {"ISO9001", "ISO14001", "ISO26262", "ISO16750"}
+# 0이면 조건이 아니라 증상 표현인 값 ("입력을 0V로 접지", "출력이 0V로 떨어짐"): 0은 건너뛰고 다음 일치를 쓴다
+POSITIVE_ONLY = {"vin_v", "vout_v", "vdd_v", "fsw_hz", "cout_f", "l_h", "css_f", "rf_ohm", "rg_ohm"}
 
 
 def extract_parts(text: str) -> list[str]:
@@ -80,9 +87,13 @@ def extract_conditions(text: str) -> Conditions:
     values: dict[str, float] = {}
     lowered = text.lower()
     for name, pattern, scale in CONDITION_PATTERNS:
-        match = re.search(pattern, lowered)
-        if match:
-            values[name] = float(match.group(1)) * scale
+        if name in values:  # css_f처럼 단위별 패턴이 여럿이면 먼저 맞은 것을 쓴다
+            continue
+        for match in re.finditer(pattern, lowered):
+            number = float(match.group(1))
+            if number > 0 or name not in POSITIVE_ONLY:
+                values[name] = number * scale
+                break
     return Conditions(**values)
 
 

@@ -6,7 +6,8 @@
 - rating_not_addressed: 정격 초과를 놓침 → 정격 초과 가설을 맨 앞에 추가
 - tests_dropped        : 테스트 오류를 고치지 않고 테스트를 뺌 → LLM 모드에서 지적 내용을 프롬프트로 전달 (mock은 해당 없음)
 - trivial_test         : 기대 범위가 어떤 값이나 통과함 → 마찬가지로 LLM 모드에서 지적 내용을 전달
-- design_not_addressed : 코드가 계산한 전류 제한 초과(design_check)를 가설이 다루지 않음 → LLM 모드에서 지적 내용을 전달
+- design_not_addressed : 코드가 계산한 설계 점검(전류 제한 초과, 소프트 스타트 범위 이탈 등)을 가설이 다루지 않음
+                         → mock은 그 가설을 앞에 넣고, LLM 모드는 지적 내용을 프롬프트로 전달
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ..design_check import format_facts
+from ..design_check import format_facts, missing_causes
 from ..llm import is_llm_mode, structured_call
 from ..schemas import Complaint, ComponentChange, Diagnosis, Evidence, Hypothesis, IntakeResult
 from ..tools.gateway import ToolGateway
@@ -44,27 +45,37 @@ def next_meta(previous: dict[str, Any] | None, qa: dict[str, Any] | None) -> dic
     return meta
 
 
-CURRENT_LIMIT_CAUSE = "인덕터 전류 리플이 커서 전류 제한에 걸림"
+# 점검 종류별로 문서에서 근거를 찾을 검색어 (mock 가설에 붙인다)
+EVIDENCE_KEYWORDS = {
+    "current_limit": ["current limit", "전류 제한"],
+    "soft_start": ["soft-start", "soft start", "slow-start", "slow start", "소프트 스타트"],  # TPS54331은 slow-start라고 쓴다
+    "min_on_time": ["minimum controllable on", "minimum on", "최소 온타임"],
+    "ldo_thermal": ["thermal shutdown", "power dissipation", "열 차단"],
+}
 
 
-def _with_current_limit(
-    diagnosis: Diagnosis, design: list[dict[str, Any]] | None, gateway: ToolGateway, part: str
+def _with_design_causes(
+    diagnosis: Diagnosis, design: list[dict[str, Any]] | None, gateway: ToolGateway, part: str, card_source: str
 ) -> Diagnosis:
-    """설계 점검에서 인덕터 최대 전류가 전류 제한 최소값을 넘으면(mock 규칙은 몰라서) 그 가설을 맨 앞에 넣는다."""
-    fact = next((f for f in design or [] if f["kind"] == "current_limit" and f["status"] == "exceeds_min"), None)
-    if fact is None or any("전류 제한" in h.cause for h in diagnosis.hypotheses):
+    """설계 점검에서 원인으로 봐야 할 상태가 나왔는데(mock 규칙은 몰라서) 가설에 없으면 그 가설을 맨 앞에 넣는다.
+
+    근거는 문서에서 찾고, 못 찾으면 점검 계산에 쓴 부품 카드를 근거로 한다 (근거가 없으면 검수가 헛재분석을 반복한다).
+    """
+    text = " ".join(f"{h.cause} {h.mechanism}" for h in diagnosis.hypotheses)
+    added: list[Hypothesis] = []
+    changes: list[ComponentChange] = []
+    for fact, (title, _words, target, after) in missing_causes(design, text):
+        evidence = _find_evidence(gateway, EVIDENCE_KEYWORDS.get(fact["kind"], []), part)
+        if not evidence and card_source:
+            evidence = [Evidence(source=card_source, snippet=fact["text"][:300], score=1.0)]
+        added.append(Hypothesis(cause=title, mechanism=fact["text"], confidence=0.7, evidence=evidence))
+        changes.append(ComponentChange(target=target, before="현재 값", after=after))
+    if not added:
         return diagnosis
-    hypothesis = Hypothesis(
-        cause=CURRENT_LIMIT_CAUSE,
-        mechanism=fact["text"],
-        confidence=0.7,
-        evidence=_find_evidence(gateway, ["current limit", "전류 제한"], part),
-    )
     solution = diagnosis.solution
     if solution is not None:
-        change = ComponentChange(target="인덕터", before="현재 값", after="더 큰 값 (최대 전류가 전류 제한 최소값 아래가 되도록)")
-        solution = solution.model_copy(update={"changes": [change, *solution.changes]})
-    return Diagnosis(hypotheses=[hypothesis, *diagnosis.hypotheses][:3], solution=solution)
+        solution = solution.model_copy(update={"changes": [*changes, *solution.changes]})
+    return Diagnosis(hypotheses=[*added, *diagnosis.hypotheses][:3], solution=solution)
 
 
 def _rule_diagnose(
@@ -89,7 +100,7 @@ def _rule_diagnose(
             candidate.hypothesis.evidence = _find_evidence(gateway, candidate.keywords, part)
     solution = ordered[0].solution.model_copy(update={"assumptions": [*ctx.assumptions.values(), *ctx.notes]})
     diagnosis = Diagnosis(hypotheses=[c.hypothesis for c in ordered], solution=solution)
-    return _with_current_limit(diagnosis, design, gateway, part)
+    return _with_design_causes(diagnosis, design, gateway, part, (research.get("part_card") or {}).get("_source", ""))
 
 
 def _llm_diagnose(

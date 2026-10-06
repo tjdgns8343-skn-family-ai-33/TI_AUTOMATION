@@ -77,7 +77,7 @@ def test_current_limit_has_room_with_a_larger_inductor():
 def test_current_limit_uses_the_card_frequency_when_the_customer_gave_none():
     conditions = {k: v for k, v in D1.items() if k != "fsw_hz"}
     fact = facts_for(TPS54331, **{**conditions, "vin_v": 24, "vout_v": 5, "iout_a": 2.0, "l_h": 4.7e-6})["current_limit"]
-    assert "카드의 전형값" in fact["text"]
+    assert "데이터시트의 전형값" in fact["text"]
 
 
 def test_current_limit_in_discontinuous_conduction_uses_the_peak():
@@ -130,7 +130,7 @@ def test_qa_sends_back_a_diagnosis_that_misses_the_current_limit():
     design = design_facts(intake(**D1), TPS62130A, call)
     review = qa_for(design, hypothesis_diagnosis("출력 커패시터 용량 부족", "유효 용량이 줄어 안정성 마진이 작다"))
     assert "design_not_addressed" in review.issue_codes and not review.passed
-    assert any("3.76 A" in issue and "전류 제한이 없습니다" in issue for issue in review.issues)
+    assert any("3.76 A" in issue and "전류 제한에 걸림' 내용이 없습니다" in issue for issue in review.issues)
 
 
 def test_qa_accepts_a_diagnosis_that_covers_the_current_limit_and_keeps_the_fact_as_a_warning():

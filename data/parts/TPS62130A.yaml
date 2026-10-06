@@ -41,6 +41,8 @@ typical:
   en_high_guaranteed_v: 0.9    # §7.5 p.5: EN·DEF·FSW 입력 High로 보장되는 전압 0.9 V 이상 (전형 문턱 0.65 V)
   en_low_guaranteed_v: 0.3     # Low로 보장되는 전압 0.3 V 이하 (전형 문턱 0.45 V). 0.3~0.9 V 사이는 보장되지 않음
   ss_tr_source_current_a: 2.5e-6   # §7.5 p.5: SS/TR 충전 전류 최소 2.3 / 전형 2.5 / 최대 2.7 µA
+  ss_charge_current_a: 2.5e-6      # 위와 같은 값 (설계 점검이 읽는 이름)
+  ss_ramp_v: 1.25                  # §9.2.2.2.2.3 p.16 식 (10): CSS = tSS × 2.5 µA / 1.25 V → tSS = CSS × 1.25 V / 2.5 µA. 권장 범위는 데이터시트에 없다
   ss_cap_formula: "CSS = tSS × 2.5 µA / 1.25 V"  # §9.2.2.2.2.3 p.16 식 (10). 예: 3.3 nF → tSS ≈ 1.65 ms (데이터시트 응용 회로 값)
   ss_start_delay_s: 50.0e-6    # §8.3.2 p.9: EN 이후 스위칭 시작까지 약 50 µs 지연
   pg_threshold_rising_pct: 95  # §7.5 p.5: PG 상승 문턱 최소 92 / 전형 95 / 최대 98 % VOUT

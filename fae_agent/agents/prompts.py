@@ -6,7 +6,9 @@ INTAKE_SYSTEM = """너는 반도체 부품 회사의 고객 기술지원 접수 
 - part_numbers: 메시지에 실제로 나온 부품 번호만 대문자로 (추측 금지)
 - symptoms: oscillation, ripple_noise, overheating, wrong_output, startup_fail, communication, damage 중 해당 코드
 - conditions: 메시지에 적힌 수치만 SI 단위로 (예: 22uF → cout_f=2.2e-05, 500kHz → fsw_hz=500000). 없는 값은 비워 둔다.
-  고객이 오실로스코프 등으로 잰 출력 리플 p-p는 ripple_meas_v(V 단위, 예: 70mV → 0.07)에, 잰 출력 전압은 vout_meas_v에 쓴다
+  고객이 오실로스코프 등으로 잰 출력 리플 p-p는 ripple_meas_v(V 단위, 예: 70mV → 0.07)에, 잰 출력 전압은 vout_meas_v에 쓴다.
+  소프트 스타트(SS 핀) 커패시터는 css_f, 비반전 증폭기의 피드백 저항·접지 쪽 저항은 rf_ohm·rg_ohm, 고객이 잰 칩 표면(케이스) 온도는
+  tcase_meas_c(°C)에 쓴다
 - missing_info: 원인을 좁히는 데 꼭 필요한데 빠진 정보 (예: 회로도, 측정 파형, 부하 전류)
 - summary: 한 문장 요약"""
 
@@ -85,6 +87,17 @@ DIAGNOSE_SYSTEM = """너는 반도체 회사의 FAE(현장 응용 엔지니어)�
      · 리플이 크지 않은데 스위칭이 불안정하다는 문의는 최소 온타임을 의심한다. buck_ripple_estimate의 on_time_s(= 듀티 / fsw)가
        부품 카드의 min_on_time_s보다 짧으면 펄스를 건너뛴다: reproduce는 on_time_s에 max=카드의 min_on_time_s를 쓴다.
      · verify는 바꾼 L·Cout·ESR로 buck_ripple_estimate와 buck_switch를 다시 돌려 ripple_v에 max=목표 리플을 쓴다.
+     · '설계 점검'의 나머지 항목도 코드가 계산한 값이다. 아래 상태가 나오면 그 원인을 가설에 반드시 넣고 숫자를 mechanism에
+       그대로 쓴다 (빠뜨리면 검수가 되돌린다):
+       - soft_start too_slow·too_fast: SS 커패시터로 정해지는 소프트 스타트 시간(tss_s)이 데이터시트 권장 범위 밖이다.
+         'SS 커패시터는 클수록 좋다' 같은 고객의 전제는 정정하고, 권장 범위 안의 SS 커패시터(css_target_f)를 해결값으로 쓴다.
+       - min_on_time below_typ·marginal: 온타임이 최소 제어 가능 온타임에 가까워 펄스를 건너뛴다 (마진이 작은 일부 보드에서만
+         생길 수 있다). uncertain이면 이상적 값과 다이오드 강하를 넣은 값이 최대값을 사이에 두고 갈려 확정할 수 없다는 뜻이니
+         단정하지 말고 두 숫자를 그대로 쓴다.
+       - ldo_thermal shutdown·over_recommended: 열이 원인이다. 전류 정격 이내여도 열이 한계일 수 있음을 숫자(imax_at_tj_rec_a,
+         vin_max_at_tj_rec_v)로 쓰고, 고객이 잰 표면 온도는 접합 온도가 아니라는 점을 text대로 설명한다. 표면 온도에 맞춰
+         계산 숫자를 바꾸지 않는다.
+       - offset info: 입력이 0 V일 때 나오는 출력은 입력 오프셋 전압 × 이득이다. 최대값 이하면 칩 불량이 아니라고 쓴다.
    - verify: args는 해결책을 적용한 값, expect는 '해결 후 목표 범위'다. 예) 바꾼 입력 전압의 tj_c에 max=125
    - info: 참고 계산이므로 expect를 비워 둔다.
    - expect는 합격과 불합격이 실제로 갈리는 범위여야 한다. 비율 지표(gain_ratio, duty)를 0~1 전체로 두거나 min·max를
@@ -130,7 +143,13 @@ RESPOND_SYSTEM = """너는 반도체 회사의 기술지원 담당자다. 분석
 - 분석 결과의 design_check는 코드가 계산한 값이다. current_limit이 exceeds_min이면 답변에 그 숫자(인덕터 최대 전류, 전류 제한
   최소값, 전류 제한이 시작되는 부하)와 권장 조치(인덕터를 키우는 값)를 쓴다. measured_ripple이 unexplained 또는 needs_esr이면
   '잰 값 X는 같은 조건의 계산 Y로는 설명되지 않는다'고 쓰고 측정 방법(프로브 접지선)과 레이아웃을 확인해 달라고 요청한다.
-  그 값이 다른 원인과 '맞는다'고 쓰지 않는다
+  그 값이 다른 원인과 '맞는다'고 쓰지 않는다. soft_start가 too_slow·too_fast이면 SS 커패시터 값, 소프트 스타트 시간 계산식과
+  숫자, 권장 범위, 권장 커패시터를 쓴다. min_on_time이 uncertain이면 두 온타임 숫자와 최소 온타임(전형·최대)을 쓰고 펄스 건너뜀을
+  단정하지 않는다. ldo_thermal이 shutdown·over_recommended이면 소모전력, 접합 온도, 열 차단 온도, 허용 부하·입력 전압을 쓰고
+  고객이 잰 표면 온도는 접합 온도와 다르다고 설명한다. offset이면 입력 0 V의 출력이 오프셋 × 이득이라 스펙 안이면 불량이 아니라고 쓴다.
+  고객이 물은 것(예: '전류 제한에 걸리는 건가요?')에는 design_check의 숫자로 직접 답한다
+- 고객 답변에는 내부 용어를 쓰지 않는다: 파일 이름(.pdf, .yaml), '부품 카드', '카드 기준', 사례 번호(case:), 영어 필드 이름
+  (il_max_a, tj_c 등). 출처는 데이터시트 이름과 쪽수로 쓰고, 값의 기준은 '데이터시트 기준'이라고 쓴다
 - 추가로 필요한 정보는 목록으로 요청한다
 - 부품 스펙에 없는 수치나 확약(보증, 교환 약속 등)은 쓰지 않는다
 - 품질 클레임에서 rating_check.abs_over가 있으면 답변 첫 문단에서 고객이 알려 준 값, 부품 카드의 한계(절대 최대와

@@ -46,6 +46,10 @@ class Conditions(BaseModel):
     vout_v: float | None = Field(default=None, description="목표 출력 전압")
     vout_meas_v: float | None = Field(default=None, description="실제로 측정된 출력 전압")
     ripple_meas_v: float | None = Field(default=None, description="고객이 잰 출력 리플 p-p (V)")
+    tcase_meas_c: float | None = Field(default=None, description="고객이 잰 칩 표면(케이스) 온도 (°C). 접합 온도가 아님")
+    css_f: float | None = Field(default=None, description="소프트 스타트(SS 핀) 커패시터 (F)")
+    rf_ohm: float | None = Field(default=None, description="비반전 증폭기의 피드백 저항 (Ω)")
+    rg_ohm: float | None = Field(default=None, description="비반전 증폭기의 접지 쪽 저항 (Ω)")
     iout_a: float | None = None
     ta_c: float | None = Field(default=None, description="주변 온도")
     fsw_hz: float | None = None

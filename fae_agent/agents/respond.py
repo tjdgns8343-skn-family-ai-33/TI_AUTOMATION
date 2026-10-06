@@ -1,4 +1,7 @@
-"""응답 에이전트: 경로(기술지원·품질 클레임·고객지원)에 맞는 고객 답변 초안과 내부 메모를 씁니다."""
+"""응답 에이전트: 경로(기술지원·품질 클레임·고객지원)에 맞는 고객 답변 초안과 내부 메모를 씁니다.
+
+고객 답변은 마지막에 reply_check.scrub_reply로 내부 표현(파일 이름, '부품 카드' 등)을 고객이 아는 말로 바꾸고 내부 메모에 남긴다.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +9,7 @@ import json
 from typing import Any
 
 from ..llm import is_llm_mode, structured_call
+from ..reply_check import scrub_reply
 from ..schemas import CheckReport, Complaint, CPRCheck, Diagnosis, IntakeResult, QAReview, ResponseDraft
 from ..waveform import strip_waveforms
 from .prompts import RESPOND_SYSTEM
@@ -135,7 +139,8 @@ def run_respond(state: dict[str, Any]) -> ResponseDraft:
             f"\n\n# 검토자 수정 요청\n{revise_comment or '없음'}"
         )
         draft = structured_call(ResponseDraft, RESPOND_SYSTEM, user)
-        draft.internal_note = f"{note}\n{draft.internal_note}".strip()
+        draft.customer_reply, notices = scrub_reply(draft.customer_reply)
+        draft.internal_note = "\n".join([note, *(f"- 답변 점검: {n}" for n in notices), draft.internal_note]).strip()
         return draft
 
     if intake.route == "fae" and diagnosis and intake.category == "technical":
@@ -144,6 +149,8 @@ def run_respond(state: dict[str, Any]) -> ResponseDraft:
         reply = _cpr_reply(complaint, cpr, rating)
     else:
         reply = _simple_reply(complaint, intake.route)
+    reply, notices = scrub_reply(reply)
+    note = "\n".join([note, *(f"- 답변 점검: {n}" for n in notices)])
     if revise_comment:  # mock 모드는 문장을 다시 쓰지 못하므로 메모로만 남김
         note += "\n(mock 모드: 초안은 자동으로 고쳐지지 않습니다. 직접 편집하거나 FAE_MODE=llm을 쓰세요.)"
     return ResponseDraft(customer_reply=reply, internal_note=note)
