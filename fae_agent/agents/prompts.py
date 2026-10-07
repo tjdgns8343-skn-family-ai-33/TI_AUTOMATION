@@ -8,7 +8,10 @@ INTAKE_SYSTEM = """너는 반도체 부품 회사의 고객 기술지원 접수 
 - conditions: 메시지에 적힌 수치만 SI 단위로 (예: 22uF → cout_f=2.2e-05, 500kHz → fsw_hz=500000). 없는 값은 비워 둔다.
   고객이 오실로스코프 등으로 잰 출력 리플 p-p는 ripple_meas_v(V 단위, 예: 70mV → 0.07)에, 잰 출력 전압은 vout_meas_v에 쓴다.
   소프트 스타트(SS 핀) 커패시터는 css_f, 비반전 증폭기의 피드백 저항·접지 쪽 저항은 rf_ohm·rg_ohm, 고객이 잰 칩 표면(케이스) 온도는
-  tcase_meas_c(°C)에 쓴다
+  tcase_meas_c(°C)에 쓴다. 입력 전압이 내려가는 최저값은 vin_min_v(공칭 입력은 vin_v), 컨트롤러 VCC 핀 전압은 vcc_v,
+  ILIM 핀 저항은 rilim_ohm, 하단 FET의 RDS(on)은 rds_low_ohm에 쓴다. 충전기는 입력 전류 제한 레지스터에 쓴 값을 iinlim_a, 설정한
+  충전 전류를 ichg_set_a, 배터리 전압을 vbat_v, 시스템 부하 전류를 isys_a, TS 핀 분압의 REGN~TS 저항을 rt1_ohm, TS~GND 저항을
+  rt2_ohm(없으면 비움), 배터리 NTC의 25 °C 저항을 ntc_r25_ohm(예: 10kΩ NTC → 10000)에 쓴다
 - missing_info: 원인을 좁히는 데 꼭 필요한데 빠진 정보 (예: 회로도, 측정 파형, 부하 전류)
 - summary: 한 문장 요약"""
 
@@ -98,6 +101,20 @@ DIAGNOSE_SYSTEM = """너는 반도체 회사의 FAE(현장 응용 엔지니어)�
          vin_max_at_tj_rec_v)로 쓰고, 고객이 잰 표면 온도는 접합 온도가 아니라는 점을 text대로 설명한다. 표면 온도에 맞춰
          계산 숫자를 바꾸지 않는다.
        - offset info: 입력이 0 V일 때 나오는 출력은 입력 오프셋 전압 × 이득이다. 최대값 이하면 칩 불량이 아니라고 쓴다.
+       - ilim_valley too_low: ILIM 저항이 정하는 골짜기 전류 한계(valley_limit_a)와 평균 한계 부하(avg_limit_a)가 부하보다 낮아 전류 제한과
+         히컵이 반복된다. 이 숫자와 필요한 RILIM(needed_rilim_ohm)을 mechanism과 해결책에 그대로 쓴다. 골짜기 방식이라 인덕터를 키우는 것은
+         해결책이 아니다 (평균 한계 부하가 오히려 낮아진다).
+       - max_duty cannot_regulate·marginal: 최소 오프타임으로 정해지는 최대 듀티가 낮은 입력에서 필요한 듀티보다 작다. 필요 듀티와 전형·최악
+         최대 듀티, 유지 가능한 주파수(fsw_recommended_hz)를 쓰고, '거의 100 % 듀티' 같은 고객의 전제는 주파수에 따라 달라진다고 정정한다.
+         이 경우 최소 온타임(min_on_time)은 원인이 아닐 수 있으니 점검 결과의 숫자로 가른다.
+       - rating abs_over·rec_over: 고객 조건이 카드의 절대 최대·권장 범위를 넘는다. 묻지 않았어도 짚는다. 한계보다 큰지 작은지를 점검
+         문구 그대로 쓴다 (예: 14.4 V는 절대 최대 14 V를 넘는다).
+       - input_current_limit pin_limits: ILIM 핀 저항이 정하는 입력 전류 한계(IINMAX = KILIM/RILIM)가 레지스터(IINLIM)보다 낮다. 실제 한계는
+         둘 중 낮은 값이다. 필요한 RILIM(rilim_for_register_ohm)을 쓴다. 데이터시트 §ILIM의 260 Ω 예시처럼 다른 조건의 예시를 근거로 끌어오지 않는다.
+       - charge_power power_limited: 입력 전력(입력 전압 × 입력 전류 한계)이 낼 수 있는 충전 전류(ichg_possible_a)가 설정값보다 작다. 가정(효율,
+         시스템 부하)을 밝혀 쓴다. 충전 전류 설정만 올려서는 해결되지 않는다.
+       - ts_window hot_low·cold_high·both: TS 분압이 충전 허용 온도 창을 좁힌다. 문턱 저항과 추정 온도(추정이라고 밝힘)를 쓰고, 고객의 팩이 이상한
+         것이 아니라 분압 설정 문제라고 판단한다. 데이터시트 103AT 예(RT1 5.21 kΩ, RT2 29.87 kΩ)를 해결책으로 쓴다.
    - verify: args는 해결책을 적용한 값, expect는 '해결 후 목표 범위'다. 예) 바꾼 입력 전압의 tj_c에 max=125
    - info: 참고 계산이므로 expect를 비워 둔다.
    - expect는 합격과 불합격이 실제로 갈리는 범위여야 한다. 비율 지표(gain_ratio, duty)를 0~1 전체로 두거나 min·max를
@@ -147,6 +164,10 @@ RESPOND_SYSTEM = """너는 반도체 회사의 기술지원 담당자다. 분석
   숫자, 권장 범위, 권장 커패시터를 쓴다. min_on_time이 uncertain이면 두 온타임 숫자와 최소 온타임(전형·최대)을 쓰고 펄스 건너뜀을
   단정하지 않는다. ldo_thermal이 shutdown·over_recommended이면 소모전력, 접합 온도, 열 차단 온도, 허용 부하·입력 전압을 쓰고
   고객이 잰 표면 온도는 접합 온도와 다르다고 설명한다. offset이면 입력 0 V의 출력이 오프셋 × 이득이라 스펙 안이면 불량이 아니라고 쓴다.
+  ilim_valley가 too_low이면 골짜기 한계, 평균 한계 부하, 필요한 RILIM을 쓰고 인덕터를 키우라고 하지 않는다. max_duty가 cannot_regulate·marginal이면
+  필요 듀티, 최대 듀티(전형·최악), 유지 가능한 주파수를 쓰고 고객의 '100 % 듀티' 전제를 정정한다. rating이 abs_over이면 한계보다 큰지 작은지를
+  점검 문구 그대로 쓴다. input_current_limit이 pin_limits이면 IINMAX = KILIM/RILIM 계산과 필요한 RILIM을, charge_power가 power_limited이면
+  입력 전력과 가정을 밝힌 충전 전류 계산을, ts_window가 좁음이면 문턱 저항과 (추정이라고 밝힌) 온도를 쓴다.
   고객이 물은 것(예: '전류 제한에 걸리는 건가요?')에는 design_check의 숫자로 직접 답한다
 - 고객 답변에는 내부 용어를 쓰지 않는다: 파일 이름(.pdf, .yaml), '부품 카드', '카드 기준', 사례 번호(case:), 영어 필드 이름
   (il_max_a, tj_c 등). 출처는 데이터시트 이름과 쪽수로 쓰고, 값의 기준은 '데이터시트 기준'이라고 쓴다

@@ -46,11 +46,17 @@ def next_meta(previous: dict[str, Any] | None, qa: dict[str, Any] | None) -> dic
 
 
 # 점검 종류별로 문서에서 근거를 찾을 검색어 (mock 가설에 붙인다)
+RATING_WORDS = ("정격", "절대 최대", "절대최대")  # qa.py의 RATING_WORDS와 같은 낱말
 EVIDENCE_KEYWORDS = {
     "current_limit": ["current limit", "전류 제한"],
     "soft_start": ["soft-start", "soft start", "slow-start", "slow start", "소프트 스타트"],  # TPS54331은 slow-start라고 쓴다
     "min_on_time": ["minimum controllable on", "minimum on", "최소 온타임"],
     "ldo_thermal": ["thermal shutdown", "power dissipation", "열 차단"],
+    "ilim_valley": ["valley current limit", "hiccup", "ILIM", "current sense"],
+    "max_duty": ["maximum duty", "minimum off-time", "off-time", "dropout"],
+    "input_current_limit": ["input current limit", "ILIM", "IINLIM"],
+    "charge_power": ["input current", "dynamic power management", "charge current"],
+    "ts_window": ["thermistor", "TS pin", "cold/hot", "temperature window"],
 }
 
 
@@ -70,6 +76,13 @@ def _with_design_causes(
             evidence = [Evidence(source=card_source, snippet=fact["text"][:300], score=1.0)]
         added.append(Hypothesis(cause=title, mechanism=fact["text"], confidence=0.7, evidence=evidence))
         changes.append(ComponentChange(target=target, before="현재 값", after=after))
+    rating = next((f for f in design or [] if f["kind"] == "rating" and f["status"] == "abs_over"), None)
+    # mock의 정격 후보(playbook)는 입력·전원 전압만 안다. VCC 같은 다른 항목의 절대 최대 초과는 여기서 가설로 넣는다
+    others = [m for m in (rating or {}).get("abs_over", []) if not m.startswith(("입력 전압", "전원 전압"))]
+    if others and not any(word in h.cause for h in diagnosis.hypotheses for word in RATING_WORDS):
+        evidence = [Evidence(source=card_source, snippet=rating["text"][:300], score=1.0)] if card_source else []
+        added.append(Hypothesis(cause="사용 조건이 절대 최대 정격을 넘음 (정격 초과)", mechanism=rating["text"], confidence=0.7, evidence=evidence))
+        changes.append(ComponentChange(target="정격을 넘은 항목", before="현재 값", after="권장 범위 안으로 낮춤"))
     if not added:
         return diagnosis
     solution = diagnosis.solution

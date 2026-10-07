@@ -390,6 +390,8 @@ def _check_design(
     hypotheses = " ".join(f"{h.cause} {h.mechanism}" for h in diagnosis.hypotheses)
     missing = {id(fact): rule for fact, rule in missing_causes(design, hypotheses)}
     for fact in design or []:
+        if fact["kind"] == "rating":  # 정격은 _check_ratings가 이미 지적·경고한다 (중복 방지)
+            continue
         rule = missing.get(id(fact))
         if rule:
             title = rule[0]

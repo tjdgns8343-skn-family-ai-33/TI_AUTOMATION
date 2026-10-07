@@ -66,12 +66,27 @@ CONDITION_PATTERNS: list[tuple[str, str, float]] = [
     ("rf_ohm", rf"(?:피드백\s*저항|\brf)\s*{_P}\s*{_NUM}\s*k", 1e3),
     ("rg_ohm", rf"(?:접지\s*쪽\s*저항|\brg)\s*{_P}\s*{_NUM}\s*k", 1e3),
     ("tcase_meas_c", rf"(?:칩\s*표면|케이스\s*온도|표면\s*온도)[^0-9\n.]{{0,16}}?{_NUM}\s*(?:도|°\s*c)", 1.0),
+    ("vin_min_v", rf"(?:최저|최소)\s*(?:입력\s*(?:전압)?\s*)?{_P}\s*{_NUM}\s*v(?![a-z])", 1.0),
+    ("vcc_v", rf"\bvcc\s*핀(?:에서|에는|에)?(?:[^0-9\n.]){{0,8}}?{_NUM}\s*v(?![a-z])", 1.0),
+    ("vcc_v", rf"\bvcc\s*{_P}\s*{_NUM}\s*v(?![a-z])", 1.0),
+    ("rilim_ohm", rf"(?:\bilim\s*(?:핀|저항)?|전류\s*제한\s*저항)(?:[^0-9\n.]){{0,14}}?{_NUM}\s*k(?![a-z])", 1e3),
+    ("rilim_ohm", rf"(?:\bilim\s*(?:핀|저항)?|전류\s*제한\s*저항)(?:[^0-9\n.]){{0,14}}?{_NUM}\s*(?:ω|ohm|옴)", 1.0),
+    ("rds_low_ohm", rf"하단\s*(?:fet|mosfet)[^0-9\n.]{{0,16}}?{_NUM}\s*m(?:ω|ohm|옴)", 1e-3),
+    ("iinlim_a", rf"iinlim[^0-9\n.]{{0,10}}?{_NUM}\s*a(?![a-z])", 1.0),
+    ("ichg_set_a", rf"(?:\bichg|충전\s*전류\s*\(ichg\))[^0-9\n.]{{0,10}}?{_NUM}\s*a(?![a-z])", 1.0),
+    ("vbat_v", rf"(?:배터리\s*전압|\bvbat)[^0-9\n.]{{0,10}}?{_NUM}\s*v(?![a-z])", 1.0),
+    ("isys_a", rf"시스템\s*부하[^0-9\n.]{{0,10}}?{_NUM}\s*a(?![a-z])", 1.0),
+    ("rt1_ohm", rf"(?:regn\s*(?:과|와)?\s*ts\s*사이[^0-9\n.]{{0,6}}?|\brt1\s*{_P}\s*){_NUM}\s*k(?![a-z])", 1e3),
+    ("ntc_r25_ohm", rf"{_NUM}\s*k\s*(?:ω|ohm|옴)?\s*ntc", 1e3),
     ("r_top_ohm", rf"상단\s*{_P}\s*{_NUM}\s*k", 1e3),
     ("r_bottom_ohm", rf"하단\s*{_P}\s*{_NUM}\s*k", 1e3),
 ]
 NOT_PARTS = {"ISO9001", "ISO14001", "ISO26262", "ISO16750"}
 # 0이면 조건이 아니라 증상 표현인 값 ("입력을 0V로 접지", "출력이 0V로 떨어짐"): 0은 건너뛰고 다음 일치를 쓴다
-POSITIVE_ONLY = {"vin_v", "vout_v", "vdd_v", "fsw_hz", "cout_f", "l_h", "css_f", "rf_ohm", "rg_ohm"}
+POSITIVE_ONLY = {
+    "vin_v", "vout_v", "vdd_v", "fsw_hz", "cout_f", "l_h", "css_f", "rf_ohm", "rg_ohm", "vin_min_v", "vcc_v", "rilim_ohm",
+    "rds_low_ohm", "vbat_v", "rt1_ohm", "ntc_r25_ohm",
+}  # fmt: skip
 
 
 def extract_parts(text: str) -> list[str]:

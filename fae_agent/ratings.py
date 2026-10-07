@@ -10,6 +10,8 @@ from .schemas import IntakeResult
 RATING_SPECS: tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...], tuple[str, ...]], ...] = (
     ("vin_v", "입력 전압", "V", ("vin_v", "vs_v"), ("vin_max_v", "vs_max_v"), ("vin_min_v", "vs_min_v")),
     ("vdd_v", "전원 전압(VDD)", "V", ("vdd_v", "vs_v"), ("vdd_max_v", "vs_max_v"), ("vdd_min_v", "vs_min_v")),
+    ("vin_min_v", "최저 입력 전압", "V", (), (), ("vin_min_v", "vs_min_v")),
+    ("vcc_v", "VCC 전압", "V", ("vcc_v",), ("vcc_ext_max_v",), ()),  # 외부 바이어스 권장 최소(8 V)는 내부 레귤레이터 사용 시 해당 없어 비교하지 않는다
     ("iout_a", "부하 전류", "A", (), ("iout_max_a",), ()),
     ("cout_f", "출력 커패시터", "F", (), ("cout_max_f",), ("cout_min_f",)),
     ("esr_ohm", "출력 커패시터 ESR", "Ω", (), ("esr_max_ohm",), ()),

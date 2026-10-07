@@ -36,6 +36,7 @@ typical:
   iinlim_max_a: 3.25
   en_ilim_default: 1           # REG00[6]: ILIM 핀 기능 기본 켜짐. 실제 입력 전류 제한은 IINLIM(또는 ICO 결과)과 ILIM 핀 중 낮은 값 (§8.2.12 p.26)
   ilim_formula: "IINMAX = KILIM / RILIM"   # §8.2.12 p.26 식 (3), KILIM 320 / 355 / 390 A·Ω (§7.5 p.9). 예: 260 Ω → 약 1.5 A. ILIM 핀을 열어 두면 한계 0 A, 접지하면 레지스터 값
+  kilim_a_ohm: 355             # §7.5 p.9: KILIM 전형 355 A·Ω (최소 320, 최대 390)
   kilim_a_ohm_min: 320
   kilim_a_ohm_max: 390
   vindpm_range_v: "3.9–15.3"  # §7.5 p.8: 입력 전압 제한(VINDPM) 범위, 100 mV 단계. 입력이 이 아래로 눌리면 충전 전류를 줄임 (DPM)
@@ -66,6 +67,8 @@ typical:
   ts_cold_threshold_pct: 73.25 # §7.5 p.9: TS 전압의 REGN 대비 비율. 충전 저온 문턱 73.25 % (상승, 72.75–73.75 %), 고온 문턱 48.25 %, 차단 44.75 %
   ts_hot_threshold_pct: 48.25
   ts_cutoff_pct: 44.75
+  ts_ntc_r25_ohm: 10.0e+3      # 103AT 계열 NTC는 25 °C에서 10 kΩ (고객이 NTC 저항을 알려 주지 않을 때의 가정)
+  ts_ntc_points: [[0, 27.28e+3], [45, 4.91e+3]]   # §8.2.7.5.1 p.23: 103AT의 0 °C 27.28 kΩ(RTH COLD), 45 °C 4.91 kΩ(RTH HOT). 온도 추정용 두 점
   ts_divider_example: "103AT NTC, 0–45 °C: RT1 5.21 kΩ, RT2 29.87 kΩ"   # §8.2.7.5.1 p.23 (RTH cold 27.28 kΩ, hot 4.91 kΩ)
   watchdog_default_s: 40       # §8.4.8 p.39: I²C 감시 타이머 기본 40 s (80 s, 160 s 선택, 00이면 끔). 만료되면 대부분의 레지스터가 기본값으로 돌아감
   watchdog_tolerance: "160 s 설정에서 실제 100–160 s (REGN LDO 꺼짐)"   # §7.6 p.11

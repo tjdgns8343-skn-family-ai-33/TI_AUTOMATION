@@ -243,5 +243,6 @@ def test_mock_flow_reports_the_heat_for_m1_and_the_offset_for_m2():
     reply = heat["response"]["customer_reply"]
     assert "223 °C" in reply and "접합 온도가 아닙니다" in reply
     offset = run_mock_case("M-2")
-    assert [f["kind"] for f in offset["design_check"]] == ["offset"]
+    kinds = {f["kind"]: f["status"] for f in offset["design_check"]}
+    assert kinds == {"offset": "info", "rating": "rec_over"}  # 전원 6 V는 LMV321A 권장 최대 5.5 V 초과 (M-2 정답 3번)
     assert "404 mV" in offset["response"]["customer_reply"]

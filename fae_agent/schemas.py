@@ -50,6 +50,17 @@ class Conditions(BaseModel):
     css_f: float | None = Field(default=None, description="소프트 스타트(SS 핀) 커패시터 (F)")
     rf_ohm: float | None = Field(default=None, description="비반전 증폭기의 피드백 저항 (Ω)")
     rg_ohm: float | None = Field(default=None, description="비반전 증폭기의 접지 쪽 저항 (Ω)")
+    vin_min_v: float | None = Field(default=None, description="입력 전압이 내려가는 최저값 (예: 배터리 크랭킹 때). 공칭 입력은 vin_v")
+    vcc_v: float | None = Field(default=None, description="컨트롤러 VCC(바이어스) 핀에서 잰·공급하는 전압 (V)")
+    rilim_ohm: float | None = Field(default=None, description="ILIM(전류 제한 설정) 핀 저항 (Ω)")
+    rds_low_ohm: float | None = Field(default=None, description="하단 FET의 RDS(on) (Ω)")
+    iinlim_a: float | None = Field(default=None, description="충전기 입력 전류 제한 레지스터(IINLIM)에 쓴 값 (A)")
+    ichg_set_a: float | None = Field(default=None, description="충전기에 설정한 충전 전류 (A)")
+    vbat_v: float | None = Field(default=None, description="배터리 전압 (V)")
+    isys_a: float | None = Field(default=None, description="충전기가 함께 공급하는 시스템 부하 전류 (A)")
+    rt1_ohm: float | None = Field(default=None, description="충전기 TS 핀 분압의 REGN~TS 저항 RT1 (Ω)")
+    rt2_ohm: float | None = Field(default=None, description="충전기 TS 핀 분압의 TS~GND 저항 RT2 (Ω). 없으면 비워 둔다")
+    ntc_r25_ohm: float | None = Field(default=None, description="배터리 NTC의 25 °C 저항 (Ω)")
     iout_a: float | None = None
     ta_c: float | None = Field(default=None, description="주변 온도")
     fsw_hz: float | None = None

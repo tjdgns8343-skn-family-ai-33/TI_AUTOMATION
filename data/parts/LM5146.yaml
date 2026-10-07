@@ -40,6 +40,8 @@ typical:
   ss_ramp_v: 0.8               # §8.3.7 p.21 식 (4): tSS = CSS × VREF / ISS, 즉 CSS[nF] = 12.5 × tSS[ms]
   ss_cap_min_f: 2.2e-9         # §6 p.4 핀 설명: SS/TRK~AGND 최소 2.2 nF (SS 클램프 안정성에 2 nF 초과 필요, §8.3.7). 권장 시간 범위는 데이터시트에 없다
   ilim_current_rdson_a: 200.0e-6   # §7.5 p.9: RDS(on) 감지 모드의 ILIM 전류 180 / 200 / 220 µA (TJ=25 °C), 온도 계수 +4500 ppm/°C
+  ilim_current_rdson_a_min: 180.0e-6  # 위와 같은 표의 최소·최대 (설계 점검이 편차 범위에 쓴다)
+  ilim_current_rdson_a_max: 220.0e-6
   ilim_current_rsense_a: 100.0e-6  # 션트 저항 모드 90 / 100 / 110 µA, 온도 계수 0
   ilim_rc_time_constant_s: 6.0e-9  # §8.3.10 p.24: RDS(on) 감지에서는 ILIM~PGND에 CILIM을 달아 RILIM × CILIM ≈ 6 ns
   ilim_formula: "RILIM = (IOUT − ΔIL/2) × RDS(on)Q2 / IRDSON  (션트: (IOUT − ΔIL/2) × RS / IRS)"   # §8.3.10 p.23 식 (6): 골짜기 전류 제한
