@@ -17,6 +17,8 @@ typical:
   iq_a: 25.0e-9                # §6.5 p.6: 무부하 접지 전류 전형 25 nA (25 °C, 최대 46 nA, −40~85 °C 최대 60 nA)
   shutdown_current_a: 3.0e-9   # §6.5 p.6: EN=0 V, 25 °C 전형 3 nA (최대 10 nA)
   dropout_v_max_3v3_to_5v: 0.31   # §6.5 p.6: IOUT=200 mA, 3.3 V ≤ VOUT ≤ 5.0 V, TJ −40~125 °C 최대 310 mV (2.5–3.3 V는 360 mV, 1.8–2.5 V는 450 mV)
+  current_limit_a_min: 0.24    # §6.5 p.6: ICL 최소 240 mA / 전형 450 mA / 최대 750 mA (VOUT = 90 % × VOUT(nom))
+  current_limit_a_max: 0.75
   current_limit_a: 0.45        # §6.5 p.6: ICL 최소 0.24 / 전형 0.45 / 최대 0.75
   short_circuit_a: 0.065       # §6.5 p.6: ISC (VOUT=0 V) 전형 65 mA
   start_up_time_s: 0.00075     # §6.6 p.7: 1.5 V < VOUT ≤ 3.0 V 전형 750 µs (최대 1200 µs). 3.0–5.0 V는 전형 1200 µs

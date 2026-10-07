@@ -16,6 +16,7 @@ typical:
   min_on_time_s: 130.0e-9      # §6.6 p.6: 최소 제어 가능 온타임 전형 105 ns / 최대 130 ns (VIN=12 V, 25 °C)
   min_on_time_typ_s: 105.0e-9  # 같은 표의 전형값 (설계 점검이 전형·최대와 비교)
   min_on_time_note: "VIN 12 V, 25 °C 조건의 값"   # 설계 점검이 답변에 인용
+  max_duty_typ: 0.93           # §6.6 p.6: 같은 표의 전형값 (BOOT-PH=6 V)
   max_duty: 0.90               # §6.6 p.6: 최대 듀티 최소 90 % (전형 93 %), BOOT-PH=6 V
   rdson_ohm: 0.08              # §6.5 p.5: BOOT-PH=6 V, VIN=12 V 전형 80 mΩ (최대 150 mΩ). VIN=3.5 V(BOOT-PH=3 V)는 115 mΩ
   current_limit_a: 5.8         # §6.5 p.5: 전류 제한 문턱 VIN=12 V 전형 5.8 A, 최소 3.5 A (최대 값 없음)

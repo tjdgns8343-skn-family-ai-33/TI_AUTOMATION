@@ -83,8 +83,12 @@ def test_max_duty_other_statuses_and_the_card_without_off_time():
     assert facts_for(LM5146, **{**Q2, "vin_min_v": 5.5, "fsw_hz": 250e3})["max_duty"]["status"] == "ok"  # 낮은 주파수면 유지
     nominal = facts_for(LM5146, **{k: v for k, v in Q2.items() if k != "vin_min_v"})["max_duty"]  # 최저 입력을 모르면 공칭 입력
     assert nominal["status"] == "ok" and "최저 입력" not in nominal["text"]
-    sync_free = facts_for(TPS54331, vin_v=5.0, vout_v=5.0, fsw_hz=570e3)["max_duty"]  # 최대 듀티만 있는 카드: 전형이 없어 marginal까지만
-    assert sync_free["status"] == "marginal" and "최소 90 %" in sync_free["text"] and sync_free["duty_max_typ"] is None
+    fixed = facts_for(TPS54331, vin_v=5.2, vout_v=5.0, fsw_hz=570e3)["max_duty"]  # 오프타임 없이 최대 듀티(최소 90 %·전형 93 %)만 있는 카드
+    assert fixed["status"] == "cannot_regulate" and fixed["duty_max_typ"] == 0.93 and "최소 90 %, 전형 93 %" in fixed["text"]
+    assert "fsw_recommended_hz" not in fixed  # 고정 주파수 부품이라 주파수를 낮추라는 제안은 하지 않는다
+    min_only = {**TPS54331, "typical": {k: v for k, v in TPS54331["typical"].items() if k != "max_duty_typ"}}  # 전형값이 없으면 marginal까지만
+    only_min = facts_for(min_only, vin_v=5.2, vout_v=5.0, fsw_hz=570e3)["max_duty"]
+    assert only_min["status"] == "marginal" and only_min["duty_max_typ"] is None and "최소 90 %입니다" in only_min["text"]
 
 
 def test_min_on_time_text_uses_microseconds_for_long_on_times():

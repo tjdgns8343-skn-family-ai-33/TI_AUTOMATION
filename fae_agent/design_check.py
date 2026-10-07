@@ -533,8 +533,9 @@ def _max_duty(conditions: dict[str, float], card: dict[str, Any], call: Call) ->
         d_typ, d_worst = 1 - t_typ * fsw, 1 - t_max * fsw
         source = f"최소 오프타임 전형 {_ns_text(t_typ)}, 최대 {_ns_text(t_max)}라서 최대 듀티는 1 − tOFF × fsw = 전형 {d_typ * 100:.3g} %, 최악 {d_worst * 100:.3g} %입니다"
     elif typical.get("max_duty"):  # 주파수와 무관하게 데이터시트가 최소 보장 최대 듀티만 주는 부품
-        d_typ, d_worst = None, float(typical["max_duty"])
-        source = f"데이터시트의 최대 듀티는 최소 {d_worst * 100:.3g} %입니다"
+        d_worst = float(typical["max_duty"])
+        d_typ = float(typical["max_duty_typ"]) if typical.get("max_duty_typ") else None
+        source = f"데이터시트의 최대 듀티는 최소 {d_worst * 100:.3g} %" + (f", 전형 {d_typ * 100:.3g} %입니다" if d_typ else "입니다")
     else:
         return None
     d_req = vout / vin
@@ -643,6 +644,10 @@ def _ldo_thermal(conditions: dict[str, float], card: dict[str, Any], call: Call)
 # ---------------------------------------------------------------- 연산증폭기
 
 
+def _mv_text(mv: float) -> str:
+    return f"{mv / 1e3:.3g} V" if mv >= 1000 else f"{mv:.3g} mV"
+
+
 def _offset(conditions: dict[str, float], card: dict[str, Any], call: Call) -> dict[str, Any] | None:
     typical = card.get("typical") or {}
     vos_typ, vos_max = typical.get("vos_typ_mv"), typical.get("vos_max_mv")
@@ -659,7 +664,7 @@ def _offset(conditions: dict[str, float], card: dict[str, Any], call: Call) -> d
         "offset_out_max_mv": out_max,
         "text": (
             f"비반전 이득 {gain:.4g}배에서 입력 오프셋 전압(전형 {float(vos_typ):g} mV, 최대 {float(vos_max):g} mV, 데이터시트 조건 25 °C)은 "
-            f"출력에서 전형 {out_typ:.3g} mV, 최대 {out_max:.3g} mV가 됩니다. 입력을 0 V로 해도 최대값 이하의 출력 전압이 나오는 것은 "
+            f"출력에서 전형 {_mv_text(out_typ)}, 최대 {_mv_text(out_max)}가 됩니다. 입력을 0 V로 해도 최대값 이하의 출력 전압이 나오는 것은 "
             "스펙 안의 동작이라 불량이 아닙니다."
         ),
     }

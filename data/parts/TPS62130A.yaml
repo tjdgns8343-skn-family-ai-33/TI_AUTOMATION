@@ -23,8 +23,10 @@ typical:
   ton_fsw_low_ns_per_unit_duty: 400   # §8.4.2 p.11 식 (1): FSW=Low에서 tON ≈ VOUT/VIN × 400 ns (정상 상태 추정)
   min_on_time_s: 80.0e-9       # §8.4.2 p.11: 아주 낮은 출력 전압에서 유지하는 절대 최소 온타임 약 80 ns (이때 동작 주파수가 공칭보다 낮아짐)
   rdson_high_ohm: 0.09         # §7.5 p.5: 상단 MOSFET VIN ≥ 6 V 전형 90 mΩ (최대 170 mΩ), VIN = 3 V 전형 120 mΩ
+  rdson_high_ohm_vin3v: 0.12   # §7.5 p.5: 상단 MOSFET VIN = 3 V 전형 120 mΩ (VIN ≥ 6 V면 90 mΩ). 입력이 낮을수록 커진다
   rdson_high_ohm_max: 0.17
   rdson_low_ohm: 0.04          # §7.5 p.5: 하단 MOSFET VIN ≥ 6 V 전형 40 mΩ (최대 70 mΩ), VIN = 3 V 전형 50 mΩ
+  rdson_low_ohm_vin3v: 0.05    # 하단 MOSFET VIN = 3 V 전형 50 mΩ (VIN ≥ 6 V면 40 mΩ)
   rdson_low_ohm_max: 0.07
   current_limit_a: 4.2         # §7.5 p.5: 상단 MOSFET 정적 전류 제한 VIN=12 V, 25 °C 최소 3.6 / 전형 4.2 / 최대 4.9 A
   current_limit_a_min: 3.6
