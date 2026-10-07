@@ -226,6 +226,14 @@ def test_synchronous_buck_simulation_without_vd_is_warned():
     assert assumption_warnings(BUCK, [plain]) == []  # 비동기 벅은 기본 다이오드 강하가 맞다
 
 
+def test_external_fet_synchronous_controller_without_card_rdson_is_also_warned():
+    """LM5146처럼 FET가 외부라 카드에 하단 RDS(on)이 없어도 synchronous 표시가 있으면 vd_v 경고를 한다."""
+    controller = {**BUCK, "synchronous": True, "typical": {"vref_v": 0.8}}
+    plain = step("spice.run_circuit", {"circuit": "buck_switch", "params": {**BUCK_ARGS, "esr_ohm": 0.005}})
+    found = assumption_warnings(controller, [plain])
+    assert len(found) == 1 and "vd_v를 지정하지 않아" in found[0] and "고객이 알려 준 FET 값" in found[0]
+
+
 def failing(tool: str, purpose: str, notes: str) -> StepResult:
     return StepResult(label="확인", purpose=purpose, tool=tool, status="fail", notes=notes)
 

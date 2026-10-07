@@ -285,8 +285,12 @@ def _min_on_time(conditions: dict[str, float], card: dict[str, Any], call: Call)
     if vout >= vin:
         return None
     ideal = vout / vin / fsw  # 이상적 듀티 Vout/Vin
-    with_diode = (vout + ASSUMED_DIODE_V) / (vin + ASSUMED_DIODE_V) / fsw  # 다이오드 강하를 넣은 듀티
     vout_min = t_max * fsw * vin  # 최소 온타임 최대값을 만족하는 최소 출력 (이상적)
+    note = typical.get("min_on_time_note")  # 카드에 적힌 측정 조건 (예: "VIN 12 V, 25 °C 조건의 값")
+    conditions_text = f" ({note})" if note else ""
+    if card.get("synchronous") or typical.get("rdson_low_ohm") is not None:
+        return _min_on_time_synchronous(ideal, vin, t_typ, t_max, vout_min, conditions_text, fsw, assumed)
+    with_diode = (vout + ASSUMED_DIODE_V) / (vin + ASSUMED_DIODE_V) / fsw  # 다이오드 강하를 넣은 듀티
     fact = {
         "kind": "min_on_time",
         "ton_ideal_s": ideal,
@@ -297,8 +301,8 @@ def _min_on_time(conditions: dict[str, float], card: dict[str, Any], call: Call)
     }
     numbers = (
         f"온타임은 이상적 듀티(Vout/Vin)로 {ideal * 1e9:.3g} ns, 다이오드 강하 {ASSUMED_DIODE_V:g} V(가정)를 넣으면 "
-        f"{with_diode * 1e9:.3g} ns입니다. 데이터시트의 최소 제어 가능 온타임은 전형 {t_typ * 1e9:.3g} ns, 최대 {t_max * 1e9:.3g} ns "
-        "(VIN 12 V, 25 °C 조건의 값)입니다."
+        f"{with_diode * 1e9:.3g} ns입니다. 데이터시트의 최소 제어 가능 온타임은 전형 {t_typ * 1e9:.3g} ns, 최대 {t_max * 1e9:.3g} ns"
+        f"{conditions_text}입니다."
     )
     if with_diode >= t_max:
         if ideal >= t_max:
@@ -319,6 +323,40 @@ def _min_on_time(conditions: dict[str, float], card: dict[str, Any], call: Call)
         text = (
             f"{numbers} 전형값보다 길지만 최대값보다 짧아, 최소 온타임이 큰 쪽 부품에서만 펄스를 건너뛸 수 있습니다 "
             f"(같은 설계라도 보드마다 다를 수 있음). 최소 출력(이상적)은 약 {vout_min:.3g} V입니다."
+        )
+    fact["text"] = text + (_assumed_frequency(fsw) if assumed else "")
+    return fact
+
+
+def _min_on_time_synchronous(
+    ideal: float, vin: float, t_typ: float, t_max: float, vout_min: float, conditions_text: str, fsw: float, assumed: bool
+) -> dict[str, Any]:
+    """동기 벅(하단이 다이오드가 아니라 MOSFET)은 다이오드 강하를 가정하지 않고 듀티 × 주기 하나로 비교한다."""
+    fact: dict[str, Any] = {
+        "kind": "min_on_time",
+        "ton_ideal_s": ideal,
+        "min_on_time_typ_s": t_typ,
+        "min_on_time_max_s": t_max,
+        "vout_min_v": vout_min,
+    }
+    numbers = (
+        f"온타임은 듀티(Vout/Vin) ÷ 스위칭 주파수로 {ideal * 1e9:.3g} ns입니다 (외부 FET 강하·데드타임은 넣지 않은 값). "
+        f"데이터시트의 최소 제어 가능 온타임은 전형 {t_typ * 1e9:.3g} ns, 최대 {t_max * 1e9:.3g} ns{conditions_text}입니다."
+    )
+    if ideal >= t_max:
+        fact["status"] = "ok"
+        text = f"{numbers} 최대값 이상이라 최소 온타임에 걸리지 않습니다."
+    elif ideal < t_typ:
+        fact["status"] = "below_typ"
+        text = (
+            f"{numbers} 전형값보다 짧아 펄스를 건너뛸 가능성이 큽니다. 입력 {vin:g} V에서 최소 온타임 최대값을 만족하는 "
+            f"최소 출력은 약 {vout_min:.3g} V입니다."
+        )
+    else:
+        fact["status"] = "marginal"
+        text = (
+            f"{numbers} 전형값보다 길지만 최대값보다 짧아, 최소 온타임이 큰 쪽 부품에서만 펄스를 건너뛸 수 있습니다 "
+            f"(같은 설계라도 보드마다 다를 수 있음). 입력 {vin:g} V에서 최소 온타임 최대값을 만족하는 최소 출력은 약 {vout_min:.3g} V입니다."
         )
     fact["text"] = text + (_assumed_frequency(fsw) if assumed else "")
     return fact

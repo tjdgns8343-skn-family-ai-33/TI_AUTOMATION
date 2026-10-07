@@ -352,7 +352,7 @@ def _assumption_warnings(plan: list[CheckStep], card: dict[str, Any], conditions
     - esr_ohm=0: 고객이 ESR을 주지 않았는데 0을 넣으면 ESR 성분이 없는 하한 리플이 나온다 (D-1에서 쓴 방식).
     - 동기 벅(카드에 rdson_low_ohm): buck_switch의 vd_v 기본값 0.4 V는 외부 다이오드 값이라 하단 MOSFET 강하로 바꿔야 한다.
     """
-    synchronous = (card.get("typical") or {}).get("rdson_low_ohm") is not None
+    synchronous = bool(card.get("synchronous")) or (card.get("typical") or {}).get("rdson_low_ohm") is not None
     messages: list[str] = []
     for step in plan:
         try:
@@ -373,8 +373,9 @@ def _assumption_warnings(plan: list[CheckStep], card: dict[str, Any], conditions
             )
         if circuit == "buck_switch" and synchronous and "vd_v" not in values:
             messages.append(
-                f"테스트 '{step.label}'는 동기 벅(부품 카드에 하단 MOSFET RDS(on)이 있음)인데 vd_v를 지정하지 않아 외부 다이오드 강하 0.4 V로 "
-                "계산했습니다. vd_v에는 하단 MOSFET의 전압 강하(부하 전류 × rdson_low_ohm)를, rds_ohm에는 상단 RDS(on)을 넣으세요."
+                f"테스트 '{step.label}'는 동기 벅(하단이 MOSFET)인데 vd_v를 지정하지 않아 외부 다이오드 강하 0.4 V로 "
+                "계산했습니다. vd_v에는 하단 MOSFET의 전압 강하(부하 전류 × 하단 RDS(on): 카드의 rdson_low_ohm 또는 고객이 알려 준 FET 값)를, "
+                "rds_ohm에는 상단 RDS(on)을 넣으세요."
             )
     return list(dict.fromkeys(messages))
 

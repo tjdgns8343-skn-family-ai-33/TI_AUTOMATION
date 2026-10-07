@@ -112,6 +112,53 @@ def test_min_on_time_uses_the_card_frequency_when_the_customer_gave_none():
     assert fact["status"] == "uncertain" and "데이터시트의 전형값 570 kHz로 가정했습니다" in fact["text"]
 
 
+LM5146 = {
+    "type": "buck",
+    "synchronous": True,
+    "typical": {
+        "min_on_time_s": 60e-9, "min_on_time_typ_s": 40e-9, "min_on_time_note": "VBST−VSW 7 V 조건",
+        "ss_charge_current_a": 10e-6, "ss_ramp_v": 0.8,
+    },
+}  # fmt: skip
+
+
+def test_synchronous_buck_min_on_time_uses_one_duty_value_and_no_diode_assumption():
+    low = facts_for(LM5146, vin_v=48, vout_v=1.8, fsw_hz=1e6, l_h=10e-6, iout_a=5)["min_on_time"]  # 37.5 ns
+    assert low["status"] == "below_typ" and low["ton_ideal_s"] == pytest.approx(37.5e-9)
+    assert "ton_with_diode_s" not in low and "다이오드" not in low["text"] and "VBST−VSW 7 V 조건" in low["text"]
+    mid = facts_for(LM5146, vin_v=48, vout_v=2.5, fsw_hz=1e6, l_h=10e-6, iout_a=5)["min_on_time"]  # 52 ns: 전형과 최대 사이
+    assert mid["status"] == "marginal"
+    ok = facts_for(LM5146, vin_v=48, vout_v=3.3, fsw_hz=1e6, l_h=10e-6, iout_a=5)["min_on_time"]  # 68.75 ns
+    assert ok["status"] == "ok" and ok["ton_ideal_s"] == pytest.approx(68.75e-9)
+
+
+def test_min_on_time_conditions_come_from_the_card_note():
+    assert "(VIN 12 V, 25 °C 조건의 값)" not in facts_for(TPS54331, **M3)["min_on_time"]["text"]  # 이 테스트 카드엔 note가 없다
+    with_note = {**TPS54331, "typical": {**TPS54331["typical"], "min_on_time_note": "VIN 12 V, 25 °C 조건의 값"}}
+    assert "(VIN 12 V, 25 °C 조건의 값)" in facts_for(with_note, **M3)["min_on_time"]["text"]
+
+
+def test_lm5146_soft_start_time_is_cap_times_0v8_over_10ua_without_a_datasheet_range():
+    fact = facts_for(LM5146, vin_v=48, vout_v=12, fsw_hz=4e5, l_h=10e-6, iout_a=5, css_f=100e-9)["soft_start"]
+    assert fact["tss_s"] == pytest.approx(8e-3) and fact["status"] == "ok"  # 100 nF → 8 ms (CSS[nF] = 12.5 × tSS[ms])
+    assert "권장 범위가 데이터시트에 없습니다" in fact["text"]
+
+
+def test_real_new_cards_have_the_fields_the_checks_read():
+    import yaml
+
+    parts = Path(__file__).parent.parent / "data" / "parts"
+    lm5146 = yaml.safe_load((parts / "LM5146.yaml").read_text(encoding="utf-8"))
+    assert lm5146["type"] == "buck" and lm5146["synchronous"] is True
+    assert lm5146["typical"]["min_on_time_typ_s"] == 40e-9 and lm5146["typical"]["min_on_time_s"] == 60e-9
+    assert lm5146["typical"]["ss_charge_current_a"] == 10e-6 and lm5146["typical"]["ss_ramp_v"] == 0.8
+    facts = facts_for(lm5146, vin_v=48, vout_v=1.8, fsw_hz=1e6, l_h=10e-6, iout_a=5)
+    assert facts["min_on_time"]["status"] == "below_typ" and "current_limit" not in facts  # 전류 제한은 ILIM 저항으로 정해 점검하지 않는다
+    bq = yaml.safe_load((parts / "BQ25895.yaml").read_text(encoding="utf-8"))
+    assert bq["type"] == "charger" and bq["abs_max"]["vin_v"] == 22 and bq["recommended"]["vin_max_v"] == 14
+    assert design_facts(intake(vin_v=9, iout_a=2), bq, call) == []  # 충전기는 아직 설계 점검이 없다
+
+
 # ---------------------------------------------------------------- LDO 열, 오프셋
 
 

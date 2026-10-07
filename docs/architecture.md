@@ -100,7 +100,7 @@ LLM이 규칙 목록에서 놓치기 쉬운 수치 비교를 **코드가 직접*
 | 벅 | `current_limit` | `exceeds_min` / `ok` | 인덕터 최대 전류(연속: 부하 + ΔIL/2, 불연속: 피크)를 카드의 `current_limit_a_min`과 비교하고, 최소 제한 부품이 걸리기 시작하는 부하를 역산한다. 평가 문의 D-1에서 이 비교가 없어 놓쳤다 |
 | 벅 | `measured_ripple` | `consistent` / `unexplained` / `needs_esr` / `skipped` | 고객이 잰 리플을 같은 조건의 계산과 비교한다. 3배 이상 다르면 `unexplained`(계산으로 설명되지 않음), ESR을 모르면 잰 값을 설명하는 데 필요한 ESR을 역산해(`needs_esr`) 알려 준다. 불연속 전도면 비교하지 않는다 |
 | 벅 | `soft_start` | `too_slow` / `too_fast` / `ok` | SS 커패시터로 소프트 스타트 시간 TSS = CSS × (기준 전압) ÷ (충전 전류)를 계산해 카드의 권장 시간 범위·커패시터 상한과 비교하고, 약 5 ms가 되는 커패시터를 알려 준다. 권장 범위가 없는 부품(TPS62130A)은 시간만 알려 준다 (M-3) |
-| 벅 | `min_on_time` | `ok` / `uncertain` / `marginal` / `below_typ` | 온타임을 이상적 듀티와 다이오드 강하 0.4 V(가정)를 넣은 듀티 두 가지로 계산해 카드의 최소 제어 가능 온타임(전형·최대)과 비교한다. 두 값이 최대값을 사이에 두고 갈리면 `uncertain`으로 확정하지 않는다 (M-3) |
+| 벅 | `min_on_time` | `ok` / `uncertain` / `marginal` / `below_typ` | 온타임을 이상적 듀티와 다이오드 강하 0.4 V(가정)를 넣은 듀티 두 가지로 계산해 카드의 최소 제어 가능 온타임(전형·최대)과 비교한다. 두 값이 최대값을 사이에 두고 갈리면 `uncertain`으로 확정하지 않는다 (M-3). 동기 벅(카드에 `synchronous: true` 또는 `rdson_low_ohm`, 예: LM5146)은 다이오드 강하를 가정하지 않고 듀티 ÷ 주파수 하나로 비교하며 `uncertain`이 없다. 측정 조건 문구는 카드의 `min_on_time_note`를 쓴다 |
 | LDO | `ldo_thermal` | `shutdown` / `over_recommended` / `ok` | 소모전력과 접합 온도를 열 차단·권장 최대와 비교하고, 접합 온도 한계 안이 되는 최대 부하·입력 전압을 역산한다. 고객이 잰 표면 온도가 있으면 접합 온도가 아니라는 점을 알린다 (M-1) |
 | 연산증폭기 | `offset` | `info` | 비반전 이득 1 + Rf/Rg에서 입력 오프셋 전압의 출력 전형·최대값을 알린다. 입력 0 V의 출력이 최대값 이하면 불량이 아니다 (M-2) |
 

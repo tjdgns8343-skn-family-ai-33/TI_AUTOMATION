@@ -1,0 +1,84 @@
+# TI LM5146 100 V 동기 벅 컨트롤러 (외부 MOSFET 구동). 값은 데이터시트에서 직접 옮김 (SNVSBV0A, Rev. A, 2021-06). 이 문서의 절 번호는 7.x(사양), 8.x(상세 설명)이고 쪽 번호는 PDF 쪽과 같다.
+# 스위치가 칩 안에 없다: 상단·하단 FET, 인덕터, 보상 회로, 전류 감지 저항을 고객이 고른다. 그래서 칩 스펙만으로 정해지는 전류 제한값은 없고 ILIM 저항이 정한다.
+part_number: LM5146
+type: buck
+synchronous: true              # 하단은 다이오드가 아니라 외부 동기 MOSFET (경부하에서는 다이오드 에뮬레이션 가능)
+description: 100 V 동기 벅 컨트롤러 (입력 5.5–100 V, 출력 0.8–60 V, 100 kHz–1 MHz, 전압 모드 + 입력 전압 보상, 7.5 V 게이트 구동, 히컵 과전류 보호). 20핀 VQFN
+abs_max:                       # §7.1 p.6
+  vin_v: 100                   # VIN, EN/UVLO, ILIM, SW 모두 100 V (SW는 −1 V까지, 20 ns 과도 −5 V)
+  bst_v: 110
+  vcc_v: 14
+  bst_to_sw_v: 14
+  pin_logic_v: 14              # SYNCIN, PGOOD 14 V
+  pin_low_v: 6                 # FB, COMP, SS/TRK, RT는 6 V까지
+  tj_max_c: 150
+recommended:                   # §7.3 p.7
+  vin_min_v: 5.5
+  vin_max_v: 100
+  vcc_ext_min_v: 8             # 외부 VCC 바이어스를 쓸 때 8–13 V (이 전압이면 내부 VCC 레귤레이터가 꺼짐)
+  vcc_ext_max_v: 13
+  bst_to_sw_min_v: 5
+  bst_to_sw_max_v: 13
+  pgood_pullup_max_v: 13
+  pgood_sink_ma: 2
+  vout_min_v: 0.8              # §8.3.2 p.17: 0.8–60 V (또는 VIN보다 약간 낮은 값 중 작은 쪽)
+  vout_max_v: 60
+  fsw_min_hz: 100.0e+3         # §8.3.6 p.20: 100 kHz–1 MHz (RT 저항으로 설정). 외부 클럭은 설정 주파수의 −20 %~+50 %
+  fsw_max_hz: 1.0e+6
+  tj_max_c: 150
+typical:
+  vref_v: 0.8                  # §7.5 p.8: FB 기준 전압 792 / 800 / 808 mV
+  rt_formula: "RRT[kΩ] = 10^4 / FSW[kHz]"   # §8.3.6.1 p.20 식 (3). 100 kΩ → 100 kHz, 25 kΩ → 400 kHz(380–420), 12.5 kΩ → 780 kHz, 10 kΩ → 1 MHz
+  min_on_time_s: 60.0e-9       # §7.5 p.9: 최소 제어 가능 온타임 전형 40 ns / 최대 60 ns (VBST−VSW = 7 V, 접합 −40~150 °C)
+  min_on_time_typ_s: 40.0e-9
+  min_on_time_note: "VBST−VSW 7 V 조건, 최소·최대는 접합 온도 −40~150 °C 전체"   # 설계 점검이 답변에 인용
+  min_off_time_s: 200.0e-9     # §7.5 p.9: 최소 오프타임 전형 140 ns / 최대 200 ns (낮은 입력 전압에서 듀티를 제한)
+  min_off_time_typ_s: 140.0e-9
+  max_duty_100khz_min: 0.98    # §7.5 p.9: 최대 듀티 100 kHz 최소 98 % (전형 99 %), 400 kHz 최소 90 % (전형 94 %), 6 V ≤ VIN ≤ 60 V
+  max_duty_400khz_min: 0.90
+  ss_charge_current_a: 10.0e-6 # §7.5 p.8: SS/TRK 충전 전류 8.5 / 10 / 12 µA
+  ss_ramp_v: 0.8               # §8.3.7 p.21 식 (4): tSS = CSS × VREF / ISS, 즉 CSS[nF] = 12.5 × tSS[ms]
+  ss_cap_min_f: 2.2e-9         # §6 p.4 핀 설명: SS/TRK~AGND 최소 2.2 nF (SS 클램프 안정성에 2 nF 초과 필요, §8.3.7). 권장 시간 범위는 데이터시트에 없다
+  ilim_current_rdson_a: 200.0e-6   # §7.5 p.9: RDS(on) 감지 모드의 ILIM 전류 180 / 200 / 220 µA (TJ=25 °C), 온도 계수 +4500 ppm/°C
+  ilim_current_rsense_a: 100.0e-6  # 션트 저항 모드 90 / 100 / 110 µA, 온도 계수 0
+  ilim_rc_time_constant_s: 6.0e-9  # §8.3.10 p.24: RDS(on) 감지에서는 ILIM~PGND에 CILIM을 달아 RILIM × CILIM ≈ 6 ns
+  ilim_formula: "RILIM = (IOUT − ΔIL/2) × RDS(on)Q2 / IRDSON  (션트: (IOUT − ΔIL/2) × RS / IRS)"   # §8.3.10 p.23 식 (6): 골짜기 전류 제한
+  hiccup_delay_cycles: 128     # §7.5 p.10: 전류 제한이 128클럭 연속이면 히컵 시작
+  hiccup_off_cycles: 8192      # 스위칭 없이 8192클럭 쉰 뒤 SS/TRK를 놓아 소프트 스타트부터 다시 시작
+  vcc_v: 7.5                   # §7.5 p.8: VCC 레귤레이션 7.3 / 7.5 / 7.7 V (VIN 9 V 이상)
+  vcc_uvlo_rising_v: 4.93      # 상승 4.8 / 4.93 / 5.2 V, 히스테리시스 0.26 V (하강 약 4.67 V). 이 값을 넘어야 소프트 스타트 시작
+  vcc_dropout_v_max: 0.72      # VIN=6 V, 20 mA에서 VIN~VCC 강하 전형 0.25 / 최대 0.72 V → VIN 6 V면 VCC는 5.8 V 근처 (§8.3.3 p.18)
+  vcc_current_limit_a_min: 0.04    # VCC 단락 전류 최소 40 mA
+  en_standby_threshold_v: 0.42     # §7.5 p.8: 꺼짐→대기 전형 0.42 V (히스테리시스 50 mV)
+  en_operating_threshold_v: 1.2    # 대기→동작 1.164 / 1.2 / 1.236 V
+  en_hysteresis_current_a: 10.0e-6 # 동작 문턱을 넘으면 EN/UVLO로 10 µA가 나가 UVLO 분압 저항에 히스테리시스를 만든다
+  uvlo_formulas: "RUV1 = (VIN(on) − VIN(off)) / 10 µA,  RUV2 = 1.2 V × RUV1 / (VIN(on) − 1.2 V)"   # §8.3.4 p.18–19 식 (1)(2)
+  pgood_upper_pct: 108         # §7.5 p.8: PGOOD 상한 106 / 108 / 110 %, 하한 90 / 92 / 94 % (FB 기준), 필터 25 µs
+  pgood_lower_pct: 92
+  pgood_pullup_range_ohm: "10 kΩ–100 kΩ"   # §8.3.5 p.19
+  gate_drive_v: 7.5
+  gate_source_a: 2.3           # §7.5 p.9
+  gate_sink_a: 3.5
+  dead_time_s: 14.0e-9         # §7.6 p.10: 적응형 데드타임 전형 14 ns
+  feedforward_gain: 15         # §7.5 p.9: kFF = VIN / VRAMP = 15 V/V
+  error_amp_gbw_hz: 6.5e+6     # §7.5 p.8: 오차 증폭기 GBW 6.5 MHz, DC 이득 94 dB
+  quiescent_run_a: 1.8e-3      # §7.5 p.8: 스위칭 안 할 때 전형 1.8 mA, 꺼짐(EN=0) 전형 13.5 µA (VIN=48 V)
+  shutdown_current_a: 13.5e-6
+  thermal_shutdown_c: 175      # §7.5 p.10: 전형 175 °C, 히스테리시스 20 °C. 래치 없이 복귀하며 반복 가능 (§8.4.5 p.26)
+  thermal_shutdown_hysteresis_c: 20
+thermal:                       # §7.4 p.7
+  theta_ja_c_per_w: 36.8       # RGY(VQFN-20)
+  theta_jc_top_c_per_w: 28
+  theta_jb_c_per_w: 11.8
+  theta_jc_bottom_c_per_w: 2.1
+notes:
+  - 전류 제한은 하단 FET가 켜진 동안 인덕터 전류의 골짜기(valley)를 재서 정한다. ILIM 저항은 SW에 연결하면 하단 FET의 RDS(on)으로, 션트 저항 쪽에 연결하면 션트로 감지하며 칩이 시동할 때 모드를 판별한다 (§8.3.10 p.23–24). RDS(on) 모드는 ILIM 전류에 +4500 ppm/°C 온도 계수를 넣어 하단 FET의 RDS(on) 변화를 따라가게 하고, 션트 방식은 보통 낮은 출력 전류에서 설정점 정확도와 온도 안정성이 중요할 때 쓴다.
+  - 과전류가 128클럭 연속이면 히컵: SS/TRK를 당겨 내리고 8192클럭 동안 쉰 뒤 소프트 스타트를 다시 한다. 400 kHz면 약 0.32 ms 걸리다가 약 20.5 ms 쉬는 반복이다 (§8.3.11 p.25, §7.5 p.10).
+  - EN/UVLO는 0.4 V 미만이면 꺼짐, 0.4~1.2 V면 대기(VCC만 켜짐, 스위칭 없음), 1.2 V 이상이면 동작이다. 입력 UVLO는 RUV1·RUV2 분압과 10 µA 히스테리시스 전류로 정한다 (§6 p.4, §8.3.4).
+  - 입력이 낮으면 VCC도 낮아진다: VIN 6 V, 20 mA에서 VCC 5.8 V. 게이트 전압이 낮으면 FET RDS(on)이 커져 효율이 떨어지고 전류 제한 설정점이 어긋나며, RDS(on)을 VGS 4.5 V로 보증한 FET를 써야 한다 (§8.3.3 p.18).
+  - SYNCIN을 GND에 연결(또는 열어 둠)하면 하단 FET의 다이오드 에뮬레이션(경부하 DCM), VCC에 묶으면 강제 PWM이다. 외부 클럭을 넣으면 에뮬레이션이 꺼져 경부하에서 인덕터 전류가 음수가 될 수 있다 (§8.4.4 p.26, §6 p.5).
+  - 소프트 스타트 중 SS/TRK는 FB보다 115 mV 높은 값으로 클램프되고, 부하 고장으로 FB가 내려가면 SS/TRK도 따라 내려가 복귀 때 제어된 소프트 스타트가 된다 (§6 p.4).
+  - 최소 온타임이 40 ns라 큰 강압비를 지원하지만, 온타임 = 듀티/fsw가 이보다 짧으면 펄스를 건너뛴다. 최소 오프타임 140 ns는 낮은 입력에서 최대 듀티를 제한한다 (§7.5 p.9).
+  - 입력 VIN 핀의 링잉이 절대 최대 100 V를 넘으면 칩이 손상될 수 있어 세라믹 입력 커패시터와 VIN 핀 RC 필터(예: 4.7 Ω, 0.1 µF)를 권장한다 (§8.3.1 p.17).
+  - PGOOD는 오픈 드레인이라 풀업이 필요하고(13 V 이하, 10~100 kΩ) FB가 기준의 92 % 아래이거나 108 % 위면 Low다 (§8.3.5 p.19).
+source: "LM5146 데이터시트 SNVSBV0A Rev. A (2021-06): p.1 특징, §6 p.4–5, §7.1 p.6, §7.3–7.4 p.7, §7.5 p.8–10, §7.6 p.10, §8.3 p.17–25, §8.4 p.25–26"
