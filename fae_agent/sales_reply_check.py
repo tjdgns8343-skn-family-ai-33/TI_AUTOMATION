@@ -29,7 +29,7 @@ EXTRA_ASK_WORDS = (
 )
 _PLACEHOLDER = re.compile(r"\[(?:source|출처|citation)\]|\{\{?[a-z_]+\}?\}|\bTODO\b|\bXXX\b", re.IGNORECASE)
 _PRICE_PROMISE = re.compile(
-    r"\d[\d,.]*\s*(?:원|달러|USD|EUR)|[$€]\s*\d|리드\s*타임\s*\d|납기\s*\d|\d\s*주\s*(?:내|안)?\s*(?:출고|납품)\s*(?:가능|보장)",
+    r"\d[\d,]*(?:\.\d+)?\s*(?:원(?!하)|달러|USD|EUR)|[$€]\s*\d|리드\s*타임\s*\d|납기\s*\d|\d\s*주\s*(?:내|안)?\s*(?:출고|납품)\s*(?:가능|보장)",
     re.IGNORECASE,
 )
 _NONE_WORDS = ("만족하는 부품이 없", "통과하는 부품이 없", "맞는 부품이 없", "해당하는 부품이 없", "적합한 부품이 없", "후보가 없")

@@ -98,3 +98,10 @@ def test_technical_replies_are_not_checked(monkeypatch):
     state["intake"] = {**state["intake"], "category": "technical", "route": "fae"}
     llm_draft(monkeypatch, "아무 답변")
     assert run_respond(state).customer_reply == "아무 답변"
+
+
+def test_a_numbered_list_item_starting_with_a_word_is_not_a_price():
+    # V 측정(2026-10-12)에서 "3. 원하시는 …" 목록이 '3. 원'(가격)으로 오탐됐다
+    assert "price_or_lead_time" not in codes(check("S-1", "수량 10개, 6주 안 확인했습니다.\n3. 원하시는 우선순위를 알려 주세요"))
+    assert "price_or_lead_time" in codes(check("S-1", "수량 10개, 1,200원입니다."))
+    assert "price_or_lead_time" in codes(check("S-1", "수량 10개, 단가 3.5달러입니다."))
