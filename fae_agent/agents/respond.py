@@ -1,6 +1,7 @@
 """응답 에이전트: 경로(기술지원·품질 클레임·고객지원)에 맞는 고객 답변 초안과 내부 메모를 씁니다.
 
 고객 답변은 마지막에 reply_check.scrub_reply로 내부 표현(파일 이름, '부품 카드' 등)을 고객이 아는 말로 바꾸고 내부 메모에 남긴다.
+영업 문의(견적·샘플, 설계 상담)의 LLM 답변은 sales_reply_check로 검사해, 코드 결과를 빼먹었거나 어기면 코드 템플릿 답변으로 바꾼다.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from typing import Any
 
 from ..llm import is_llm_mode, structured_call
 from ..reply_check import scrub_reply
+from ..sales_reply_check import check_sales_reply
 from ..schemas import CheckReport, Complaint, CPRCheck, Diagnosis, IntakeResult, QAReview, ResponseDraft
 from ..waveform import strip_waveforms
 from .prompts import RESPOND_SYSTEM
@@ -169,6 +171,26 @@ def _internal_note(
     return "\n".join(lines)
 
 
+def _sales_guard(draft: ResponseDraft, intake: IntakeResult, complaint: Complaint, state: dict[str, Any], revising: bool) -> list[str]:
+    """영업 문의의 LLM 답변을 검사한다. 걸리면 코드 템플릿 답변으로 바꾼다(재시도·토큰 없음). 검토자가 수정을 요청한 경우는 바꾸지 않고 알림만 한다."""
+    if intake.category not in ("quote_sample", "design_request"):
+        return []
+    issues = check_sales_reply(draft.customer_reply, intake.category, state)
+    if not issues:
+        return []
+    listed = "; ".join(issues)
+    if revising:
+        return [f"영업 답변 검사에 걸렸지만 수정 요청 중이라 그대로 두었습니다. 직접 확인하세요: {listed}"]
+    if intake.category == "quote_sample" and state.get("sales"):
+        template = _sales_reply(complaint, state["sales"])
+    elif state.get("recommendation"):
+        template = _design_reply(complaint, state["recommendation"])
+    else:
+        return [f"영업 답변 검사에 걸렸지만 대체할 코드 결과가 없어 그대로 두었습니다: {listed}"]
+    draft.customer_reply, _ = scrub_reply(template)
+    return [f"LLM 초안이 영업 답변 검사에 걸려 코드가 만든 템플릿 답변으로 바꿨습니다: {listed}"]
+
+
 def run_respond(state: dict[str, Any]) -> ResponseDraft:
     complaint = Complaint.model_validate(state["complaint"])
     intake = IntakeResult.model_validate(state["intake"])
@@ -196,6 +218,7 @@ def run_respond(state: dict[str, Any]) -> ResponseDraft:
         )
         draft = structured_call(ResponseDraft, RESPOND_SYSTEM, user)
         draft.customer_reply, notices = scrub_reply(draft.customer_reply)
+        notices += _sales_guard(draft, intake, complaint, state, bool(revise_comment))
         draft.internal_note = "\n".join([note, *(f"- 답변 점검: {n}" for n in notices), draft.internal_note]).strip()
         return draft
 
