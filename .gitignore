@@ -47,3 +47,4 @@ last_run_id.txt
 .DS_Store
 Thumbs.db
 desktop.ini
+data/outbox/

@@ -5,7 +5,8 @@
         │                          ↑______ 재분석(최대 N회) ____│
         ├─ 품질 클레임 → 정격 점검 → CPR 점검 → 응답
         └─ 배송·기타 → 응답
-  응답 → 사람 승인(interrupt) ─┬─ 승인·반려 → 마무리
+  응답 → 사람 승인(interrupt) ─┬─ 승인 → 문서화(고객 메일 초안·내부 보고서·티켓 요약) → 마무리
+                               ├─ 반려 → 마무리 (문서 없음)
                                └─ 수정 요청 → 응답
 """
 
@@ -17,6 +18,7 @@ from typing import Any
 from .agents.checker import run_checks
 from .agents.cpr import run_cpr
 from .agents.diagnose import run_diagnose
+from .agents.documents import run_documents
 from .agents.intake import run_intake
 from .agents.qa import run_qa
 from .agents.research import run_research
@@ -31,7 +33,7 @@ from .tools.gateway import ToolGateway
 # 노드 이름은 상태 키와 겹치면 안 됩니다 (LangGraph 규칙)
 INTAKE, RESEARCH, DIAGNOSE, CHECK, QA = "intake_agent", "research_agent", "diagnose_agent", "check_agent", "qa_agent"
 CPR, RESPOND, REVIEW, FINALIZE = "cpr_agent", "respond_agent", "human_review", "finalize"
-RATING = "rating_agent"
+RATING, DOCUMENTS = "rating_agent", "documents_agent"
 
 
 def _intake(state: FAEState) -> IntakeResult:
@@ -162,6 +164,11 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
         review = {"action": action, "comment": decision.get("comment", "")}
         return {"review": review, "log": [f"[사람 검토] {action}"]}
 
+    def documents_node(state: FAEState) -> dict[str, Any]:
+        # 승인된 상태로만 만든다. 승인 전에는 이 노드에 오지 않는다 (route_after_review)
+        documents = run_documents(dict(state))
+        return {"documents": documents, "log": [f"[문서화] {documents['status']}" + (f" ({'; '.join(documents['issues'])})" if documents["issues"] else "")]}
+
     def finalize_node(state: FAEState) -> dict[str, Any]:
         action = (state.get("review") or {}).get("action", "approve")
         status = "answered" if action == "approve" else "rejected"
@@ -171,7 +178,7 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
             "tickets.add_event",
             ticket_id=ticket_id,
             stage="final",
-            payload={"review": state.get("review"), "response": state.get("response")},
+            payload={"review": state.get("review"), "response": state.get("response"), "documents": state.get("documents")},
         )
         return {"status": status, "log": [f"[완료] {status}"]}
 
@@ -185,7 +192,7 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
         return DIAGNOSE
 
     def route_after_review(state: FAEState) -> str:
-        return RESPOND if state["review"]["action"] == "revise" else FINALIZE
+        return {"revise": RESPOND, "approve": DOCUMENTS}.get(state["review"]["action"], FINALIZE)
 
     builder = StateGraph(FAEState)
     for name, node in (
@@ -198,6 +205,7 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
         (CPR, cpr_node),
         (RESPOND, respond_node),
         (REVIEW, review_node),
+        (DOCUMENTS, documents_node),
         (FINALIZE, finalize_node),
     ):
         builder.add_node(name, node)
@@ -210,7 +218,8 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
     builder.add_conditional_edges(QA, route_after_qa, {DIAGNOSE: DIAGNOSE, RESPOND: RESPOND})
     builder.add_edge(CPR, RESPOND)
     builder.add_edge(RESPOND, REVIEW)
-    builder.add_conditional_edges(REVIEW, route_after_review, {RESPOND: RESPOND, FINALIZE: FINALIZE})
+    builder.add_conditional_edges(REVIEW, route_after_review, {RESPOND: RESPOND, DOCUMENTS: DOCUMENTS, FINALIZE: FINALIZE})
+    builder.add_edge(DOCUMENTS, FINALIZE)
     builder.add_edge(FINALIZE, END)
     return builder.compile(checkpointer=checkpointer or InMemorySaver())
 

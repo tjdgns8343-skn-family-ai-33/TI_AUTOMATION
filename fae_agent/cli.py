@@ -205,6 +205,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         result = resume_run(graph, thread_id, action, comment)
     status = "사람 승인 대기 (이 실행을 끝내면 이어서 할 수 없음)" if waiting else result.get("status")
     print(f"\n티켓: {result.get('ticket_id')} / 상태: {status}")
+    documents = result.get("documents")
+    if documents:
+        listed = ", ".join(documents.get("files", [])) or "; ".join(documents.get("issues", []))
+        print(f"문서: {documents['status']} {documents.get('dir', '')} {listed}".rstrip())
     if args.json:
         Path(args.json).write_text(json.dumps(result, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         print(f"결과 저장: {args.json}")

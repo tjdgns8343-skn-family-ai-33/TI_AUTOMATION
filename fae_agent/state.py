@@ -21,6 +21,7 @@ class FAEState(TypedDict, total=False):
     rating_check: dict[str, Any]  # 품질 클레임 경로의 정격 점검 (고객 조건 대 부품 카드 한계)
     cpr: dict[str, Any]  # CPRCheck
     response: dict[str, Any]  # ResponseDraft
+    documents: dict[str, Any]  # 승인 뒤 만든 문서 {status, dir, files, issues}
     review: dict[str, Any]  # 사람 검토 결과 {"action", "comment"}
     status: str
     log: Annotated[list[str], operator.add]  # 단계별 진행 기록 (계속 누적)

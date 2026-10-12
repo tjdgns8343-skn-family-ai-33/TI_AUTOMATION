@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     max_qa_retries: int = 2
     # 데이터 폴더 (기본: 프로젝트/data)
     data_dir: Path = PROJECT_ROOT / "data"
+    # 승인 뒤 문서(고객 메일 초안, 내부 보고서, 티켓 요약)를 만들지 여부
+    generate_documents: bool = True
     # ngspice 실행 파일 경로 (비우면 PATH에서 ngspice_con → ngspice 순서로 찾음)
     ngspice_path: str = ""
 
@@ -58,6 +60,10 @@ class Settings(BaseSettings):
     @property
     def db_path(self) -> Path:
         return self.data_dir / "tickets.db"
+
+    @property
+    def outbox_dir(self) -> Path:
+        return self.data_dir / "outbox"
 
     @property
     def circuits_dir(self) -> Path:
