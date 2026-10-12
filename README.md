@@ -3,11 +3,14 @@
 반도체 부품 회사(TI 가정)에 들어온 고객 기술 문의를 **접수·분류 → 근거 검색 → 원인 가설 → 계산·시뮬레이션 검증 → 검수 → 답변 초안 → 사람 승인**까지 처리하는 개인 프로젝트입니다.
 에이전트는 LangGraph로 연결하고, 도구(계산, ngspice, 문서 검색, 티켓)는 MCP 서버로 노출했으며, 승인 화면이 있는 웹 앱(Django + React + Docker)으로 실행됩니다.
 
+**영업 문의도 처리합니다 (2026-10 추가).** 샘플·견적 요청과 "이 조건에 맞는 부품을 추천해 달라"는 설계 상담을 **접수 → 요청 점검·부품 추천 → 답변 초안 → 사람 승인 → (승인되면) 고객 메일 초안·내부 보고서·티켓 요약 자동 작성**까지 처리하고, 이 흐름을 MCP 서버(`fae_workflow`, `sales`, `docs`)로 호출할 수 있습니다. 가격·납기·재고는 데이터가 없어 절대 말하지 않고 영업 담당자에게 넘깁니다. 쉬운 설명: [영업 업무 자동화 보고서](docs/sales_automation_report.md)
+
 **English summary.** FAE Agent drafts replies to customer technical inquiries about semiconductor parts (TI assumed).
 It classifies an inquiry, retrieves evidence from datasheets, proposes root-cause hypotheses, verifies them with design-formula calculations and ngspice simulations,
 lets a rule-based reviewer check the evidence and the tests (including a cross-check of calculation against simulation), and stops for human approval before anything is sent.
 It was evaluated on 51 synthetic inquiries: 44 about six real TI parts (two LDOs, two buck converters, two op-amps) whose limits were transcribed from the datasheets, and 7 about fictional demo parts.
 Honest result: root-cause accuracy is on par with a plain LLM; the value is datasheet-grounded answers with computed numbers, correction of wrong customer assumptions, and an auditable review step.
+Since then it also handles sales inquiries (sample/quote requests and part-recommendation requests): code checks what information is missing and compares requirements against part cards, never states prices or lead times, and after human approval drafts a customer email, an internal report and a ticket summary (nothing is sent). The workflow is exposed as MCP servers. Measured on 18 synthetic sales inquiries (small sample, author = scorer); see [docs/sales_measurement_2026-10-12.md](docs/sales_measurement_2026-10-12.md).
 Datasheet PDFs are not in this repository (TI terms of use, see [docs/data_policy.md](docs/data_policy.md)).
 
 ## 무엇을 하나
@@ -22,17 +25,25 @@ Datasheet PDFs are not in this repository (TI terms of use, see [docs/data_polic
 
 품질 클레임("타 버렸으니 반품해 달라")은 고객이 알려 준 값을 데이터시트의 절대 최대·권장 범위와 수치로 비교합니다. 예를 들어 LM2596에 48 V를 걸었다면 절대 최대 45 V(권장 40 V) 초과를 출처와 함께 답에 붙이고, 반품 절차와 자료 요청은 그대로 안내합니다.
 
-**범위**: 메인은 기술 문의형(발진, 과열, 리플·노이즈, 출력 이상, 기동 실패 등)입니다. 대부분 고객의 회로 설계나 사용 조건 문제라서 문서·계산·시뮬레이션으로 풀 수 있습니다. 품질 클레임은 CPR 자료 점검과 8D 초안까지, 배송·기타는 분류해서 넘기는 답변 초안까지만 합니다 ([docs/scope.md](docs/scope.md)).
+영업 문의는 다음처럼 처리합니다.
+- "TPS62130A 샘플 10개, 시제품, 6주 안" → 부품 번호·수량·용도·필요 시점·시제품/양산 중 **빠진 것만** 되묻고, 가격·납기·재고는 "영업 시스템 확인 후 담당자 회신"으로 넘깁니다.
+- "입력 9~15 V, 출력 3.3 V, 0.5 A, 효율 중시" → 부품 카드 6종과 숫자로 비교해 후보별 통과·주의·탈락 이유(예: LDO 소모전력 5.85 W)와 계산에 쓴 가정, 비교 범위(TI 전체 제품이 아님)를 알려 줍니다. 조건에 맞는 부품이 없으면 억지로 추천하지 않고 담당자에게 넘깁니다.
+- 승인한 뒤에만 `data/outbox/<티켓>/`에 메일 초안(발송 안 함)·내부 보고서·티켓 요약이 만들어지고, 승인된 내용에 없는 숫자·약속 표현이 있으면 만들지 않습니다.
+
+**범위**: 메인은 기술 문의형(발진, 과열, 리플·노이즈, 출력 이상, 기동 실패 등)입니다. 대부분 고객의 회로 설계나 사용 조건 문제라서 문서·계산·시뮬레이션으로 풀 수 있습니다. 품질 클레임은 CPR 자료 점검과 8D 초안까지, 배송·기타는 분류해서 넘기는 답변 초안까지만 합니다. 영업 문의(견적·샘플, 설계 상담)는 전원 부품(LDO·벅) 추천까지이고 연산증폭기·충전기·통신 부품 추천은 담당자 검토로 넘깁니다 ([docs/scope.md](docs/scope.md)).
 
 ## 측정 결과 (성공과 실패를 모두 적었습니다)
 
-실제 TI 부품 6종(LDO 2, 벅 2, 연산증폭기 2)의 데이터시트에서 한계·특성 값을 직접 옮긴 부품 카드를 만들고, 가상 고객 문의 51건(실제 부품 44건 + 가상 부품 7건)에 정답 근거를 붙여 평가했습니다. 문의는 실제 고객 데이터가 아니라 직접 작성한 것입니다.
+실제 TI 부품 6종(LDO 2, 벅 2, 연산증폭기 2)의 데이터시트에서 한계·특성 값을 직접 옮긴 부품 카드를 만들고, 가상 고객 문의 51건(실제 부품 44건 + 가상 부품 7건)에 정답 근거를 붙여 평가했습니다. 문의는 실제 고객 데이터가 아니라 직접 작성한 것입니다. (이후 부품 카드는 실제 9종으로, 평가 문의는 87건으로 늘었고 아래 표 아래쪽 행이 그 측정입니다.)
 
 | 측정 | 결과 |
 | --- | --- |
 | 가능성 검증 (3종, 문의 32건) | 원인 적중은 **도구 없는 LLM과 같거나 낮음** (쉬운 문의 1순위 15/18 대 15/18, 구체적 문의 7/10 대 9/10). 정답 숫자가 답에 나온 비율은 11/18 대 4/18. 비용은 약 24배 |
 | 새 부품 3종 (문의 12건) | 분류 12/12, 원인 1순위 6/9, 품질 클레임 정격 초과 판정 3/3, 정답 숫자 16/28 |
 | 연산증폭기 계산 대 ngspice | 이득 4.472배 대 4.472배 (차이 0.005 %), 대역폭 100 kHz 대 99.99 kHz |
+| 어려운 복합 문의 (D-1, M-1~M-3, Q-1~Q-4) | 핵심 원인은 대부분 찾았지만 모든 항목을 만족한 문의는 적었습니다. **코드가 계산해 넘긴 숫자는 정확히 답에 실렸고, 모델이 스스로 계산해야 하는 숫자는 빠지거나 틀렸습니다.** 그래서 빠진 계산을 설계 점검 코드로 옮겼습니다 ([진행 보고서](docs/progress_report_2026-10-12.md)) |
+| 영업 문의 S 9건 (모델 답변 그대로) | 34항목 중 충족 19 / 일부 6 / 못함 9 (도구 없는 모델 혼자는 11 / 10 / 13). 탈락한 부품을 답변에서 빼먹는 일이 있었습니다 |
+| 영업 문의 V 9건 (답변 검사 포함) | 33항목 중 충족 29 / 일부 4 / 못함 0. **단, 9건 중 6건은 검사에 걸려 코드가 만든 답변으로 바뀐 것**이라 모델 단독 점수가 아닙니다 ([영업 측정](docs/sales_measurement_2026-10-12.md)) |
 
 - **결론**: 이 시스템의 가치는 원인을 더 잘 맞히는 것이 아니라 (그렇지 않았습니다), 데이터시트 근거와 계산 숫자가 붙은 초안을 만들고, 고객의 틀린 전제("IQ가 25 nA면 전류 여유가 많다", "LM358은 레일 투 레일")를 부품 카드로 정정하고, 사람이 승인하기 전에 검수가 테스트의 질을 확인하는 데 있습니다.
 - **알려진 한계**: 새 부품 측정에서 검수 미통과가 3건 나왔는데, 세 건 모두 값 대조 테스트의 합격 범위 방향을 틀린 채 재분석 3번을 다 썼습니다. 슬루율이 진짜 원인인 문의에서는 답변 본문은 맞았지만 원인 후보 목록에는 빠졌고, "IC가 죽는다"는 서지 문의는 품질 클레임 경로로 가서 서지 32 V와 절대 최대 30 V를 비교하지 못했습니다.
@@ -47,13 +58,16 @@ flowchart LR
     A[접수·분류] -->|기술 문의| B[근거 검색]
     A -->|품질 클레임| R[정격 점검] --> C[CPR 점검·8D 초안]
     A -->|배송·기타| F[답변 초안]
+    A -->|견적·샘플| S[요청 점검] --> F
+    A -->|설계 상담| P[부품 추천] --> F
     B --> D[원인 가설] --> E[계산·시뮬레이션] --> Q{검수}
     Q -->|미통과, 최대 2회| D
     Q -->|통과| F
     C --> F
     F --> H{사람 승인}
     H -->|수정 요청| F
-    H -->|승인·반려| Z[마무리]
+    H -->|승인| M[문서화: 메일 초안·보고서·요약] --> Z[마무리]
+    H -->|반려| Z
 ```
 
 | 단계 | 하는 일 | 도구 |
@@ -65,7 +79,10 @@ flowchart LR
 | 검수 | 근거 인용, 테스트의 질(자기 참조·무의미한 기대 범위·부품에 안 맞는 도구), 정격 초과, 계산과 시뮬레이션 교차 확인. 문제가 있으면 원인 가설로 되돌림 | — |
 | 정격 점검 | 품질 클레임의 고객 값을 부품 카드의 한계와 수치 비교 | kb |
 | CPR 점검 | 반품 필수 자료(A-B-A 교차 검증, 마킹 사진, 회로도 등), 8D 초안 | — |
-| 답변 | 경로에 맞는 고객 답변 초안과 내부 메모 | — |
+| 요청 점검 (견적·샘플) | 고객이 준 항목과 빠진 항목(부품 번호·수량·용도·시점·시제품/양산) 정리. 가격·납기·재고는 말하지 않음 | kb |
+| 부품 추천 (설계 상담) | 입력 범위·출력 전압·부하 전류를 부품 카드와 숫자로 비교(입력·전류·출력 범위·열·듀티·온타임 등), 후보별 통과·주의·탈락 이유와 가정 | kb, calc |
+| 답변 | 경로에 맞는 고객 답변 초안과 내부 메모. 영업 문의는 모델 답변을 코드가 검사해(후보 누락, "통과 없음", 불필요한 질문, 자리표시 누출) 어기면 코드가 만든 답변으로 바꿈 | — |
+| 문서화 | **승인된 뒤에만** 메일 초안(발송 안 함)·내부 보고서·티켓 요약을 `data/outbox/`에 저장. 승인된 내용에 없는 숫자·약속이 있으면 만들지 않음 | — |
 
 검수 규칙과 재분석 규칙은 [docs/architecture.md](docs/architecture.md)의 표에 있습니다. 검수는 규칙 기반이라 결과가 항상 같고 비용이 없습니다.
 
@@ -104,7 +121,7 @@ python -m fae_agent.cli run --file data/samples/complaint_ldo_overheating.txt --
 
 - Windows에서는 `.env` 없이도 동작하고, 설정을 바꾸려면 `copy .env.example .env` 후 편집합니다.
 - `run`은 사람 승인 단계에서 멈추고 승인(a) / 수정 요청(r) / 반려(x)를 묻습니다. 입력을 줄 수 없는 곳에서는 `--decision a`, `--decision r,a --comment "..."`, `--decision x`를 붙입니다.
-- 테스트는 코어 149개입니다. ngspice가 없으면 시뮬레이션 관련 19개는 건너뛰고 나머지 130개가 통과합니다. 백엔드 테스트 15개는 `cd backend && python -m pytest`로 실행합니다 (Redis·Postgres 없이).
+- 테스트는 코어 317개입니다 (2026-10-12 기준, ngspice 경로가 설정된 환경에서 316 통과, 1 건너뜀). ngspice가 없으면 시뮬레이션 관련 테스트는 건너뜁니다. 백엔드 테스트 15개는 `cd backend && python -m pytest`로 실행합니다 (Redis·Postgres 없이).
 - LLM 모드(`FAE_MODE=llm`)에서는 `run`·`eval`이 모델을 불러 요금이 나가므로 `--allow-llm`을 붙여야 실행됩니다 (안 붙이면 거부).
 - 다른 명령: `python -m fae_agent.cli eval`(평가셋 전체를 자동 승인으로 실행), `ingest`(문서 색인 다시 만들기), `tickets`(처리한 티켓 목록).
 - Streamlit 개발 화면: `streamlit run app/streamlit_app.py`
@@ -132,27 +149,31 @@ docker compose up -d --build
 
 ### 4. LLM 모드
 
-`.env`에 `FAE_MODE=llm`, `LLM_MODEL=openai:gpt-5.4-mini`, `OPENAI_API_KEY=...`를 적습니다. 웹 앱에서 `docker-compose.llm.yml`을 겹쳐 실행하면 루트 `.env`의 `OPENAI_API_KEY`를 작업자 컨테이너에만 넘깁니다. 문의 한 건에 기술 문의는 약 1.2만~3.1만 토큰, 품질 클레임은 약 3.5천 토큰이 들었습니다 (재분석 횟수에 따라 달라짐).
+`.env`에 `FAE_MODE=llm`, `LLM_MODEL=openai:gpt-5.4-mini`, `OPENAI_API_KEY=...`를 적습니다. 웹 앱에서 `docker-compose.llm.yml`을 겹쳐 실행하면 루트 `.env`의 `OPENAI_API_KEY`를 작업자 컨테이너에만 넘깁니다. 문의 한 건에 기술 문의는 약 1.2만~3.1만 토큰(어려운 복합 문의는 더 듦), 품질 클레임은 약 3.5천 토큰, 영업 문의는 약 6.3천~8.9천 토큰이 들었습니다 (기술 문의는 재분석 횟수에 따라 달라짐). 모델을 쓰는 측정은 토큰 예상을 확인한 뒤에만 돌립니다.
 
 ### ngspice와 MCP (선택)
 
 - **ngspice**: 없어도 전체 흐름은 돌고 시뮬레이션 단계만 생략됩니다. <https://ngspice.sourceforge.io/download.html>에서 받아 `.env`의 `NGSPICE_PATH`에 실행 파일 경로를 적습니다 (Windows는 콘솔용 `ngspice_con.exe`). TI의 암호화된 SPICE 모델은 PSpice for TI 전용이라 쓰지 않고, 데이터시트 값으로 만든 단순 회로만 씁니다.
 - **MCP 모드**: `TOOL_MODE=mcp`로 두면 도구를 MCP 서버로 호출합니다 (`langchain[mcp]`의 베타 API 사용). 서버만 따로 띄우려면 `python -m fae_agent.mcp_servers.calc_server`. 웹 앱과 측정은 `local` 모드로 돌았고 MCP 경유 실행은 선택 사항입니다.
+- **영업 워크플로 MCP 서버**: `fae_workflow`(접수 → 승인 → 문서화, 상태를 가진 서버), `sales`(분류·견적 요청 점검·부품 추천), `docs`(승인 뒤 문서 조회·무결성 확인). 문서를 만드는 도구는 일부러 없고, 승인 전에는 문서가 만들어지지 않습니다. 실제로 서버를 띄워 호출하는 테스트까지 했고 Claude Desktop 화면 연결은 아직 확인하지 않았습니다. 설정 예와 한계: [docs/mcp_workflow.md](docs/mcp_workflow.md)
 
 ## 저장소 구조
 
 ```text
 fae_agent/            파이썬 패키지
-  agents/             접수, 조사, 원인 분석, 테스트 실행, 검수, 답변, CPR, 증상별 규칙(mock)
-  tools/              계산 11종, ngspice, 문서 검색, 티켓, ToolGateway(직접 호출/MCP 전환)
+  agents/             접수, 조사, 원인 분석, 테스트 실행, 검수, 답변, CPR, 증상별 규칙(mock),
+                      영업 점검(sales), 부품 추천(recommend), 승인 뒤 문서화(documents)
+  design_check.py     코드가 계산하는 설계 점검 (벅·LDO·연산증폭기·충전기), docs_check.py 문서 검사, sales_reply_check.py 영업 답변 검사
+  tools/              계산 11종, ngspice, 문서 검색, 티켓, 영업(sales)·문서(docs)·워크플로(workflow) 도구, ToolGateway(직접 호출/MCP 전환)
   mcp_servers/        도구를 MCP 서버(calc, kb, spice, tickets, sales, docs, fae_workflow)로 노출
   graph.py            LangGraph 조립 (재분석 루프, 사람 승인)
 backend/              Django + DRF API, Celery 작업자, 티켓·실행·승인 모델, 테스트
 frontend/             React(Vite, TypeScript) 화면: 진행 단계, 승인, 시뮬레이션 파형·주파수 응답 차트
 docker/, docker-compose*.yml   이미지와 전체 스택 (llm 모드는 별도 덮어쓰기 파일)
 circuits/             ngspice 회로 템플릿 (lc_load_step, opamp_ac, buck_switch)
-data/parts/           부품 스펙 카드 (실제 6종 + 가상 3종, 데이터시트 쪽수 표기)
-data/eval/            평가 문의 61건 (실제 부품 54 + 가상 부품 7, 정답과 데이터시트 근거 포함). 벅 스위칭 5건은 측정하지 않았고, 어려운 복합 문의 5건은 각각 1회 측정 ([결과](docs/hard_cases_2026-10-02.md))
+data/parts/           부품 스펙 카드 (실제 9종 + 가상 3종, 데이터시트 쪽수 표기)
+data/eval/            평가 문의 87건, 11개 파일 (정답과 근거 포함. 영업 문의 S 9건·V 9건 포함). 어려운 복합 문의는 각각 1회 측정 ([결과](docs/hard_cases_2026-10-02.md), [새 부품](docs/new_devices_2026-10-07.md)). 벅 스위칭 5건과 기존 부품 새 문의 R-1~R-4는 LLM으로 측정하지 않음
+data/outbox/          승인 뒤 만들어진 메일 초안·보고서·요약 (깃 제외)
 data/samples/         데모 문의와 가상 문서
 docs/                 설계 문서, 검증·진행 보고서, docs/feasibility/ 실행기와 원자료
 tests/                코어 pytest
@@ -169,14 +190,17 @@ tests/                코어 pytest
 ## 현재 상태와 다음 단계
 
 - [x] LangGraph 흐름, 검수·재분석 규칙, mock·llm 모드, MCP 서버
-- [x] 실제 TI 부품 6종 카드와 평가 문의 51건, 측정과 보고서
+- [x] 실제 TI 부품 9종 카드와 평가 문의 87건, 측정과 보고서
+- [x] 영업 문의 경로(견적·샘플, 설계 상담), 승인 뒤 자동 문서화, 영업 답변 검사, MCP 서버 3개 (`fae_workflow`, `sales`, `docs`)
 - [x] 웹 앱 (Django + React + Docker), 사람 승인, 티켓 저장, nginx 비밀번호와 접수 제한
 - [x] 계산과 ngspice 시뮬레이션 교차 확인 (연산증폭기, 벅 리플과 연속/불연속 전도 판정)
 - [ ] AWS 배포 (EC2 한 대 + Docker Compose, HTTPS)
-- [ ] 검수 개선: 값 대조 방향 규칙, 슬루율 가설 강제, 무의미한 기대 범위 지적, 전류 제한 여유와 잰 리플의 설계 점검 (구현, 수정 후 재측정 전). 설계 점검은 소프트 스타트·최소 온타임·LDO 열·오프셋으로 넓혔고 고객 답변의 내부 용어를 코드로 걸러 낸다 (구현, LLM 재측정 전)
+- [x] 설계 점검 확대 (전류 제한·ILIM 골짜기·잰 리플·소프트 스타트·최소 온타임·최대 듀티, LDO 열, 연산증폭기 오프셋, 충전기, 정격)와 고객 답변의 내부 용어 걸러 내기. 새 부품 어려운 문의 측정에서 드러난 약점을 코드로 옮김 (일부는 구현 뒤 LLM 재측정 전)
+- [ ] 기존 부품 새 문의 R-1~R-4 LLM 측정 (예상 약 13만 토큰, 승인 대기)
+- [ ] 영업 문의: 진짜 처음 보는 문의로 재측정(V는 규칙을 고치며 본 문의), "이미 준 정보를 되묻지 않기" 검사, Claude Desktop 연결 확인
 - [ ] 손상(damage) 문의의 서지·절대 최대 비교, 팀원 블라인드 문의 평가
 - [ ] 검색을 임베딩 + 벡터 DB로 교체, 회로 템플릿 추가 (벅 출력 리플 등)
 
 ## 문서
 
-[아키텍처와 검수 규칙](docs/architecture.md) · [범위](docs/scope.md) · [데이터 이용 원칙](docs/data_policy.md) · [기획안](docs/proposal.md) · [가능성 검증 보고서](docs/feasibility_report.md) · [진행 보고서](docs/progress_report_2026-09-30.md) · [어려운 문의 측정](docs/hard_cases_2026-10-02.md) · [개선 로드맵](docs/roadmap.md)
+[아키텍처와 검수 규칙](docs/architecture.md) · [범위](docs/scope.md) · [데이터 이용 원칙](docs/data_policy.md) · [기획안](docs/proposal.md) · [가능성 검증 보고서](docs/feasibility_report.md) · [진행 보고서](docs/progress_report_2026-09-30.md) · [어려운 문의 측정](docs/hard_cases_2026-10-02.md) · [새 부품 측정](docs/new_devices_2026-10-07.md) · [진행 보고서 (10-12)](docs/progress_report_2026-10-12.md) · [영업 업무 자동화 보고서 (쉬운 버전)](docs/sales_automation_report.md) · [영업 문의 측정](docs/sales_measurement_2026-10-12.md) · [MCP 워크플로 사용법](docs/mcp_workflow.md) · [개선 로드맵](docs/roadmap.md)
