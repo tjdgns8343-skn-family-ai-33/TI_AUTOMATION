@@ -81,6 +81,62 @@ def _cpr_reply(complaint: Complaint, cpr: CPRCheck, rating: dict[str, Any] | Non
     return "\n".join(lines)
 
 
+def _sales_reply(complaint: Complaint, sales: dict[str, Any]) -> str:
+    kind = {"quote": "견적", "sample": "샘플"}.get(sales.get("kind"), "견적·샘플")
+    lines = [f"{complaint.customer}님, 안녕하세요.", f"{kind} 문의를 주셔서 감사합니다.", ""]
+    if sales.get("collected"):
+        lines += ["■ 알려 주신 내용"] + [f"- {label}: {value}" for label, value in sales["collected"].items()] + [""]
+    known = [p for p in sales.get("parts", []) if p.get("known")]
+    if known:
+        lines += ["■ 부품 소개 (데이터시트 기준)"] + [f"- {p['part']}: {p['description']}" for p in known] + [""]
+    if sales.get("missing"):
+        lines += ["■ 정확한 안내를 위해 아래 정보를 알려 주세요"] + [f"- {m}" for m in sales["missing"]] + [""]
+    lines += ["■ 안내", f"- {sales.get('note', '')}", "", "감사합니다."]
+    return "\n".join(lines)
+
+
+def _design_reply(complaint: Complaint, rec: dict[str, Any]) -> str:
+    lines = [f"{complaint.customer}님, 안녕하세요.", "설계 요구사항을 검토한 결과를 안내드립니다.", ""]
+    req = rec.get("requirements") or {}
+    given = []
+    if req.get("vin_max_v") is not None:
+        low, high = req.get("vin_min_v"), req["vin_max_v"]
+        given.append(f"입력 {low:g}~{high:g} V" if low is not None and low != high else f"입력 {high:g} V")
+    if req.get("vout_v") is not None:
+        given.append(f"출력 {req['vout_v']:g} V")
+    if req.get("iout_a") is not None:
+        given.append(f"부하 {req['iout_a']:g} A")
+    if given:
+        lines += ["■ 알려 주신 요구사항", f"- {', '.join(given)}", ""]
+    status = rec.get("status")
+    if status in ("need_info", "unsupported"):
+        lines += ["■ 안내", f"- {rec.get('note', '')}"]
+        if rec.get("missing"):
+            lines += ["", "■ 비교를 위해 아래 정보를 알려 주세요"] + [f"- {m}" for m in rec["missing"]]
+    else:
+        keep = [c for c in rec.get("candidates", []) if c["verdict"] != "fail"]
+        drop = [c for c in rec.get("candidates", []) if c["verdict"] == "fail"]
+        if keep:
+            lines.append("■ 후보 (데이터시트 값과 수치로 비교한 결과)")
+            for c in keep:
+                lines.append(f"- {c['part']} ({'LDO' if c['type'] == 'ldo' else '벅'}): {'추천' if c['verdict'] == 'ok' else '주의 사항 있음'}")
+                lines += [f"  - {text}" for text in [*c["facts"], *c["warnings"]]]
+            lines.append("")
+        else:
+            lines += ["■ 결과", "- 이 시스템이 비교할 수 있는 부품 중 요구사항을 만족하는 부품이 없습니다. 담당자가 다른 제품군을 검토해 회신드리겠습니다.", ""]
+        if drop:
+            lines.append("■ 제외한 부품과 이유")
+            for c in drop:
+                lines.append(f"- {c['part']}")
+                lines += [f"  - {text}" for text in c["fails"]]
+            lines.append("")
+        if rec.get("assumptions"):
+            lines += ["■ 계산에 쓴 가정"] + [f"- {a}" for a in rec["assumptions"]] + [""]
+        lines += ["■ 안내", f"- {rec.get('note', '')}"]
+    lines += ["", "감사합니다."]
+    return "\n".join(lines)
+
+
 def _simple_reply(complaint: Complaint, route: str) -> str:
     if route == "customer_support":
         body = "배송·주문 관련 문의는 고객지원팀에서 확인한 뒤 회신드리겠습니다."
@@ -131,7 +187,7 @@ def run_respond(state: dict[str, Any]) -> ResponseDraft:
     note = _internal_note(intake, qa, state.get("qa_retries", 0), revise_comment, rating, design)
 
     if is_llm_mode():
-        keys = ("design_check", "intake", "research", "diagnosis", "check_report", "qa", "cpr", "rating_check")
+        keys = ("design_check", "intake", "research", "diagnosis", "check_report", "qa", "cpr", "rating_check", "sales", "recommendation")
         payload = {key: state.get(key) for key in keys}
         payload = strip_waveforms(payload)  # 시뮬레이션 파형은 숫자가 많아 프롬프트(12000자 제한)를 채우므로 뺀다
         user = (
@@ -145,6 +201,10 @@ def run_respond(state: dict[str, Any]) -> ResponseDraft:
 
     if intake.route == "fae" and diagnosis and intake.category == "technical":
         reply = _technical_reply(complaint, intake, diagnosis, report, state.get("research") or {}, design)
+    elif intake.category == "quote_sample" and state.get("sales"):
+        reply = _sales_reply(complaint, state["sales"])
+    elif intake.category == "design_request" and state.get("recommendation"):
+        reply = _design_reply(complaint, state["recommendation"])
     elif intake.route == "cpr" and cpr:
         reply = _cpr_reply(complaint, cpr, rating)
     else:

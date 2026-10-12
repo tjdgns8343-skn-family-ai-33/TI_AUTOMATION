@@ -19,6 +19,8 @@ class FAEState(TypedDict, total=False):
     qa: dict[str, Any]  # QAReview
     qa_retries: int
     rating_check: dict[str, Any]  # 품질 클레임 경로의 정격 점검 (고객 조건 대 부품 카드 한계)
+    sales: dict[str, Any]  # 견적·샘플 요청 점검 (수집한 정보, 빠진 정보, 부품 소개)
+    recommendation: dict[str, Any]  # 설계 상담의 부품 추천 (후보별 통과·탈락 이유)
     cpr: dict[str, Any]  # CPRCheck
     response: dict[str, Any]  # ResponseDraft
     documents: dict[str, Any]  # 승인 뒤 만든 문서 {status, dir, files, issues}

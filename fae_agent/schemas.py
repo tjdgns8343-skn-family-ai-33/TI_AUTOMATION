@@ -12,8 +12,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-Category = Literal["technical", "quality_claim", "logistics", "other"]
-Route = Literal["fae", "cpr", "customer_support"]
+Category = Literal["technical", "quality_claim", "logistics", "quote_sample", "design_request", "other"]
+Route = Literal["fae", "cpr", "customer_support", "sales"]
 SYMPTOM_CODES = (
     "oscillation",
     "ripple_noise",
@@ -50,6 +50,7 @@ class Conditions(BaseModel):
     css_f: float | None = Field(default=None, description="소프트 스타트(SS 핀) 커패시터 (F)")
     rf_ohm: float | None = Field(default=None, description="비반전 증폭기의 피드백 저항 (Ω)")
     rg_ohm: float | None = Field(default=None, description="비반전 증폭기의 접지 쪽 저항 (Ω)")
+    vin_max_v: float | None = Field(default=None, description="입력 전압이 올라가는 최고값 (요구사항의 입력 범위 위쪽). 범위가 있으면 vin_v에도 최고값을 쓴다")
     vin_min_v: float | None = Field(default=None, description="입력 전압이 내려가는 최저값 (예: 배터리 크랭킹 때). 공칭 입력은 vin_v")
     vcc_v: float | None = Field(default=None, description="컨트롤러 VCC(바이어스) 핀에서 잰·공급하는 전압 (V)")
     rilim_ohm: float | None = Field(default=None, description="ILIM(전류 제한 설정) 핀 저항 (Ω)")
@@ -77,14 +78,27 @@ class Conditions(BaseModel):
         return {k: v for k, v in self.model_dump().items() if v is not None}
 
 
+class SalesRequest(BaseModel):
+    """견적·샘플·설계 상담 문의에서 고객이 알려 준 요청 정보. 없으면 비워 둔다 (지어내지 않는다)."""
+
+    kind: Literal["quote", "sample", "design", ""] = Field(default="", description="quote=견적, sample=샘플, design=설계 상담·부품 추천")
+    quantity: int | None = Field(default=None, description="요청 수량 (개)")
+    need_by: str = Field(default="", description="필요한 시점·납기 (고객이 쓴 그대로, 예: '6주 안', '11월')")
+    application: str = Field(default="", description="사용 용도·제품 (고객이 쓴 그대로)")
+    stage: Literal["prototype", "production", ""] = Field(default="", description="prototype=시제품·평가, production=양산")
+    notes: str = Field(default="", description="우선순위 같은 요구 (예: 저잡음, 고효율, 소형)")
+
+
 class IntakeResult(BaseModel):
     category: Category = Field(
-        description="technical=동작·설계 문제, quality_claim=불량·반품, logistics=배송·주문, other=기타"
+        description="technical=동작·설계 문제, quality_claim=불량·반품, logistics=배송·주문 상태, "
+        "quote_sample=견적·샘플 요청, design_request=신규 설계 요구사항·부품 추천·대체품 상담, other=기타"
     )
-    route: Route = Field(description="fae=기술지원, cpr=품질 클레임 접수, customer_support=고객지원")
+    route: Route = Field(description="fae=기술지원, cpr=품질 클레임 접수, customer_support=고객지원, sales=영업(견적·샘플·설계 상담)")
     part_numbers: list[str] = Field(default_factory=list, description="언급된 부품 번호(대문자)")
     symptoms: list[str] = Field(default_factory=list, description="증상 코드: " + ", ".join(SYMPTOM_CODES))
     conditions: Conditions = Field(default_factory=Conditions)
+    request: SalesRequest = Field(default_factory=SalesRequest)
     urgency: Literal["low", "medium", "high"] = "medium"
     missing_info: list[str] = Field(default_factory=list, description="답변 전에 고객에게 더 받아야 할 정보")
     summary: str = ""

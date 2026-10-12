@@ -16,6 +16,8 @@ export const STATUS_KO: Record<RunStatus, string> = {
 export const CATEGORY_KO: Record<string, string> = {
   technical: "기술 문의",
   quality_claim: "품질 클레임",
+  quote_sample: "견적·샘플",
+  design_request: "설계 상담",
   logistics: "배송·주문",
   other: "기타",
 };

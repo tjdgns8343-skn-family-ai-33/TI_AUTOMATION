@@ -9,10 +9,12 @@ from __future__ import annotations
 import re
 
 from ..llm import is_llm_mode, structured_call
-from ..schemas import Complaint, Conditions, IntakeResult
+from ..schemas import Complaint, Conditions, IntakeResult, SalesRequest
 from .prompts import INTAKE_SYSTEM
 
-ROUTES = {"technical": "fae", "quality_claim": "cpr", "logistics": "customer_support", "other": "fae"}
+ROUTES = {
+    "technical": "fae", "quality_claim": "cpr", "logistics": "customer_support", "quote_sample": "sales", "design_request": "sales", "other": "fae",
+}  # fmt: skip
 
 # 가상 샘플 부품(EXAMPLE-*)과 TI에서 흔한 제품군 접두어. 숫자가 반드시 들어가야 부품 번호로 봅니다.
 PART_RE = re.compile(
@@ -40,7 +42,10 @@ SYMPTOM_KEYWORDS: dict[str, list[str]] = {
     "damage": ["타버", "탔", "파손", "쇼트", "연기", "burn", "damaged", "short"],
 }
 QUALITY_WORDS = ["불량", "반품", "rma", "불량률", "a-b-a", "교차 검증", "8d", "fa 요청", "defect", "return"]
-LOGISTICS_WORDS = ["배송", "납기", "라벨", "수량", "주문", "견적", "shipping", "delivery", "label", "invoice"]
+LOGISTICS_WORDS = ["배송", "납기", "라벨", "수량", "주문", "shipping", "delivery", "label", "invoice"]
+QUOTE_WORDS = ["견적", "샘플", "단가", "구매하고", "quote", "sample", "quotation"]
+# 신규 설계 요구사항·부품 추천·대체품 상담 (증상이 없고 요구사항이 있는 문의)
+DESIGN_WORDS = ["추천", "대체품", "대체할", "후보", "찾고 있", "찾고있", "선정", "신규 설계", "새로 설계", "새 설계", "설계 중", "요구사항", "recommend", "alternative"]
 URGENT_WORDS = ["긴급", "라인 정지", "양산 중단", "urgent", "asap", "line down"]
 
 _NUM = r"(\d+(?:\.\d+)?)"
@@ -109,7 +114,35 @@ def extract_conditions(text: str) -> Conditions:
             if number > 0 or name not in POSITIVE_ONLY:
                 values[name] = number * scale
                 break
+    ranged = _RANGE.search(lowered)
+    if ranged and float(ranged.group(1)) < float(ranged.group(2)):  # "입력 9~15V": 최저·최고, vin_v에는 최고값(정격 비교는 최악 조건)
+        values["vin_min_v"], values["vin_max_v"] = float(ranged.group(1)), float(ranged.group(2))
+        values["vin_v"] = values["vin_max_v"]
     return Conditions(**values)
+
+
+_PLAIN_NUM = r"(\d+(?:\.\d+)?)"
+_RANGE = re.compile(rf"입력(?:\s*전압)?\s*(?:은|는|이|가|:|=)?\s*{_PLAIN_NUM}\s*v?\s*(?:~|∼|-|에서)\s*{_PLAIN_NUM}\s*v")
+
+
+def extract_request(text: str, quote: bool, design: bool) -> SalesRequest:
+    """견적·샘플·설계 상담에서 고객이 쓴 수량·시점·용도·단계를 뽑는다 (없는 것은 비워 둔다)."""
+    lowered = text.lower()
+    kind = "sample" if ("샘플" in lowered or "sample" in lowered) else "quote" if quote else "design" if design else ""
+    quantity = re.search(r"(\d[\d,]*)\s*(?:개|ea|pcs|릴|reel|장)", lowered)
+    need_by = re.search(r"(\d+\s*주(?:\s*(?:안|내|이내|까지))?|\d+\s*월(?:\s*(?:초|중|말))?(?:\s*까지)?|\d+\s*일\s*(?:안|내|이내|까지))", text)
+    application = re.search(r"(?:용도는?|용도\s*:|용으로|에 사용|에 쓸|에 쓰는)\s*([^.,\n]{0,30})", text)
+    app_before = re.search(r"([^.,\n]{2,25}?)\s*(?:용으로|에 사용|에 쓸|에 쓰는|에 쓰려)", text)
+    stage = "production" if re.search(r"양산|mass production", lowered) else "prototype" if re.search(r"시제품|프로토|평가용|평가 보드|prototype", lowered) else ""
+    notes = [word for word in ("저잡음", "저노이즈", "고효율", "효율", "소형", "저전력", "low noise") if word in lowered]
+    return SalesRequest(
+        kind=kind,
+        quantity=int(quantity.group(1).replace(",", "")) if quantity else None,
+        need_by=need_by.group(1).strip() if need_by else "",
+        application=(application.group(1).strip() if application else (app_before.group(1).strip() if app_before else "")),
+        stage=stage,
+        notes=", ".join(notes),
+    )
 
 
 def _has_any(text: str, words: list[str]) -> bool:
@@ -126,6 +159,10 @@ def classify_rules(complaint: Complaint) -> IntakeResult:
 
     if _has_any(lowered, QUALITY_WORDS) or "damage" in symptoms:
         category = "quality_claim"
+    elif not symptoms and _has_any(lowered, QUOTE_WORDS):
+        category = "quote_sample"
+    elif set(symptoms) <= {"ripple_noise"} and _has_any(lowered, DESIGN_WORDS):  # '저잡음' 같은 요구는 증상이 아니다
+        category = "design_request"
     elif _has_any(lowered, LOGISTICS_WORDS) and not symptoms:
         category = "logistics"
     elif symptoms:
@@ -155,6 +192,9 @@ def classify_rules(complaint: Complaint) -> IntakeResult:
         part_numbers=parts,
         symptoms=symptoms,
         conditions=conditions,
+        request=extract_request(text, category == "quote_sample", category == "design_request")
+        if category in ("quote_sample", "design_request")
+        else SalesRequest(),
         urgency=urgency,
         missing_info=missing,
         summary=summary,

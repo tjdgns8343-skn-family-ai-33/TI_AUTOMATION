@@ -97,6 +97,21 @@ def internal_report_md(state: dict[str, Any], generated_at: str) -> str:
         lines += [f"- {_line(c.get('target', ''))}: {_line(c.get('before', ''))} → {_line(c.get('after', ''))}" for c in solution.get("changes") or []]
         if solution.get("assumptions"):
             lines += ["- 계산에 쓴 가정:", *["  " + row for row in _bullets(solution["assumptions"])]]
+    sales = state.get("sales") or {}
+    if sales:
+        lines += ["", "## 영업 요청 점검 (견적·샘플)", f"- 종류: {sales.get('kind', '')}"]
+        lines += [f"- {label}: {_line(value)}" for label, value in (sales.get("collected") or {}).items()]
+        lines += ["- 빠진 정보:", *["  " + row for row in _bullets(sales.get("missing") or [])], f"- 안내: {_line(sales.get('note', ''))}"]
+    rec = state.get("recommendation") or {}
+    if rec:
+        lines += ["", "## 부품 추천 (요구사항 대 부품 데이터 수치 비교)", f"- 상태: {rec.get('status', '')}", f"- 범위: {_line(rec.get('note', ''))}"]
+        for cand in rec.get("candidates") or []:
+            lines.append(f"- {cand.get('part', '')} ({cand.get('type', '')}): {cand.get('verdict', '')}")
+            lines += [f"  - 근거: {_line(t)}" for t in cand.get("facts") or []]
+            lines += [f"  - 주의: {_line(t)}" for t in cand.get("warnings") or []]
+            lines += [f"  - 탈락 이유: {_line(t)}" for t in cand.get("fails") or []]
+        if rec.get("assumptions"):
+            lines += ["- 가정:", *["  " + row for row in _bullets(rec["assumptions"])]]
     design = state.get("design_check") or []
     if design:
         lines += ["", "## 설계 점검 (코드 계산)", *[f"- [{f.get('kind', '')} / {f.get('status', '')}] {_line(f.get('text', ''))}" for f in design]]
@@ -128,6 +143,7 @@ def ticket_summary_json(state: dict[str, Any], generated_at: str) -> str:
         "customer": complaint.get("customer", ""),
         "subject": _line(complaint.get("subject", "")),
         "category": intake.get("category", ""),
+        "request": (intake.get("request") or {}),
         "route": intake.get("route", ""),
         "part_numbers": intake.get("part_numbers") or [],
         "urgency": intake.get("urgency", ""),

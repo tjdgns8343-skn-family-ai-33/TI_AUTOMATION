@@ -4,6 +4,8 @@
   접수 ─┬─ 기술 문의 → 기술 조사 → 원인 분석 → 테스트 → 검수 ─┬─ 통과 → 응답
         │                          ↑______ 재분석(최대 N회) ____│
         ├─ 품질 클레임 → 정격 점검 → CPR 점검 → 응답
+        ├─ 견적·샘플 → 요청 정보 점검 → 응답
+        ├─ 설계 상담 → 부품 추천(요구사항 대 부품 카드 수치 비교) → 응답
         └─ 배송·기타 → 응답
   응답 → 사람 승인(interrupt) ─┬─ 승인 → 문서화(고객 메일 초안·내부 보고서·티켓 요약) → 마무리
                                ├─ 반려 → 마무리 (문서 없음)
@@ -21,8 +23,10 @@ from .agents.diagnose import run_diagnose
 from .agents.documents import run_documents
 from .agents.intake import run_intake
 from .agents.qa import run_qa
+from .agents.recommend import run_recommend
 from .agents.research import run_research
 from .agents.respond import run_respond
+from .agents.sales import run_sales_check
 from .config import get_settings
 from .design_check import design_facts
 from .ratings import rating_facts
@@ -34,6 +38,7 @@ from .tools.gateway import ToolGateway
 INTAKE, RESEARCH, DIAGNOSE, CHECK, QA = "intake_agent", "research_agent", "diagnose_agent", "check_agent", "qa_agent"
 CPR, RESPOND, REVIEW, FINALIZE = "cpr_agent", "respond_agent", "human_review", "finalize"
 RATING, DOCUMENTS = "rating_agent", "documents_agent"
+SALES, RECOMMEND = "sales_agent", "recommend_agent"
 
 
 def _intake(state: FAEState) -> IntakeResult:
@@ -139,6 +144,18 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
         check = run_cpr(_complaint(state), _intake(state), state.get("rating_check"))
         return {"cpr": check.model_dump(), "log": [f"[품질 클레임] 부족한 자료 {len(check.missing)}건"]}
 
+    def sales_node(state: FAEState) -> dict[str, Any]:
+        sales = run_sales_check(_intake(state), gw)
+        return {"sales": sales, "log": [f"[영업 점검] {sales['kind']} / 빠진 정보 {len(sales['missing'])}개"]}
+
+    def recommend_node(state: FAEState) -> dict[str, Any]:
+        recommendation = run_recommend(_intake(state), _complaint(state).text, gw)
+        passed = [c["part"] for c in recommendation["candidates"] if c["verdict"] != "fail"]
+        return {
+            "recommendation": recommendation,
+            "log": [f"[부품 추천] {recommendation['status']} / 후보 {len(recommendation['candidates'])}종 중 통과 {', '.join(passed) or '없음'}"],
+        }
+
     def respond_node(state: FAEState) -> dict[str, Any]:
         draft = run_respond(dict(state))
         return {"response": draft.model_dump(), "log": ["[응답] 고객 답변 초안 작성"]}
@@ -184,7 +201,7 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
 
     def route_after_intake(state: FAEState) -> str:
         category = state["intake"]["category"]
-        return {"technical": RESEARCH, "quality_claim": RATING}.get(category, RESPOND)
+        return {"technical": RESEARCH, "quality_claim": RATING, "quote_sample": SALES, "design_request": RECOMMEND}.get(category, RESPOND)
 
     def route_after_qa(state: FAEState) -> str:
         if state["qa"]["passed"] or state.get("qa_retries", 0) > settings.max_qa_retries:
@@ -202,6 +219,8 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
         (CHECK, check_node),
         (QA, qa_node),
         (RATING, rating_node),
+        (SALES, sales_node),
+        (RECOMMEND, recommend_node),
         (CPR, cpr_node),
         (RESPOND, respond_node),
         (REVIEW, review_node),
@@ -210,8 +229,10 @@ def build_graph(gateway: ToolGateway | None = None, checkpointer: Any = None):
     ):
         builder.add_node(name, node)
     builder.add_edge(START, INTAKE)
-    builder.add_conditional_edges(INTAKE, route_after_intake, {RESEARCH: RESEARCH, RATING: RATING, RESPOND: RESPOND})
+    builder.add_conditional_edges(INTAKE, route_after_intake, {RESEARCH: RESEARCH, RATING: RATING, SALES: SALES, RECOMMEND: RECOMMEND, RESPOND: RESPOND})
     builder.add_edge(RATING, CPR)
+    builder.add_edge(SALES, RESPOND)
+    builder.add_edge(RECOMMEND, RESPOND)
     builder.add_edge(RESEARCH, DIAGNOSE)
     builder.add_edge(DIAGNOSE, CHECK)
     builder.add_edge(CHECK, QA)
