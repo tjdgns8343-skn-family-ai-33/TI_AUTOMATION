@@ -32,6 +32,9 @@
 | kb | search_docs, search_cases, get_part_card, list_parts |
 | spice | run_netlist, run_circuit, compare_circuit (회로 템플릿은 아래 참고) |
 | tickets | create_ticket, update_ticket, add_event, get_ticket, list_tickets |
+| sales | classify_inquiry, check_request, recommend_parts (규칙 기반, 토큰 0) |
+| docs | list_documents, read_document, check_document_text (읽기 전용, 문서를 만드는 도구는 없음) |
+| fae_workflow | submit_inquiry, get_draft, list_pending, review (상태를 가진 서버라 ToolGateway에는 없음. 사용법은 [mcp_workflow.md](mcp_workflow.md)) |
 
 ## 시뮬레이션 회로 템플릿 (`circuits/`)
 

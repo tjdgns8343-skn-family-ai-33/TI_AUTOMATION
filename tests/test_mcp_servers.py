@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("mcp")
 
 
-@pytest.mark.parametrize("module", ["calc_server", "knowledge_server", "spice_server", "tickets_server"])
+@pytest.mark.parametrize("module", ["calc_server", "knowledge_server", "spice_server", "tickets_server", "sales_server", "docs_server", "workflow_server"])
 def test_server_builds(module):
     server_module = importlib.import_module(f"fae_agent.mcp_servers.{module}")
     assert server_module.mcp is not None

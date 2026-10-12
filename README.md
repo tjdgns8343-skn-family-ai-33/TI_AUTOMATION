@@ -145,7 +145,7 @@ docker compose up -d --build
 fae_agent/            파이썬 패키지
   agents/             접수, 조사, 원인 분석, 테스트 실행, 검수, 답변, CPR, 증상별 규칙(mock)
   tools/              계산 11종, ngspice, 문서 검색, 티켓, ToolGateway(직접 호출/MCP 전환)
-  mcp_servers/        도구를 MCP 서버(calc, kb, spice, tickets)로 노출
+  mcp_servers/        도구를 MCP 서버(calc, kb, spice, tickets, sales, docs, fae_workflow)로 노출
   graph.py            LangGraph 조립 (재분석 루프, 사람 승인)
 backend/              Django + DRF API, Celery 작업자, 티켓·실행·승인 모델, 테스트
 frontend/             React(Vite, TypeScript) 화면: 진행 단계, 승인, 시뮬레이션 파형·주파수 응답 차트

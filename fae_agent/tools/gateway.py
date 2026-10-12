@@ -17,7 +17,9 @@ from typing import Any
 
 from ..config import PROJECT_ROOT, get_settings
 from .calc import CALC_TOOLS
+from .docs import DOCS_TOOLS
 from .knowledge import KNOWLEDGE_TOOLS
+from .sales import SALES_TOOLS
 from .spice import SPICE_TOOLS
 from .tickets import TICKET_TOOLS
 
@@ -27,6 +29,9 @@ SERVERS: dict[str, tuple[dict[str, Callable[..., dict[str, Any]]], str]] = {
     "kb": (KNOWLEDGE_TOOLS, "fae_agent.mcp_servers.knowledge_server"),
     "spice": (SPICE_TOOLS, "fae_agent.mcp_servers.spice_server"),
     "tickets": (TICKET_TOOLS, "fae_agent.mcp_servers.tickets_server"),
+    "sales": (SALES_TOOLS, "fae_agent.mcp_servers.sales_server"),
+    "docs": (DOCS_TOOLS, "fae_agent.mcp_servers.docs_server"),
+    # fae_workflow(문의 접수 → 승인 → 문서화)는 상태를 가진 서버라 호출마다 서버를 띄우는 게이트웨이에는 넣지 않는다 (tools/workflow.py)
 }
 
 
