@@ -9,6 +9,8 @@ recommended:                   # §6.3 p.5
   vin_min_v: 1.5
   vin_max_v: 6.0
   iout_max_a: 0.2
+  vout_min_v: 0.8              # p.1 특징: 고정 출력 0.8–5.0 V (description과 같은 값)
+  vout_max_v: 5.0
   tj_max_c: 125
   cout_min_f: 1.0e-6           # 표는 1 µF, 각주(1): 안정성에 유효 용량 0.5 µF 이상 필요
   cout_max_f: 22.0e-6          # 각주(2): 22 µF는 안정성이 유지되는 최대 '디레이팅 후' 용량

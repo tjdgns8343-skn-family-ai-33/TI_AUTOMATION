@@ -45,7 +45,7 @@ QUALITY_WORDS = ["불량", "반품", "rma", "불량률", "a-b-a", "교차 검증
 LOGISTICS_WORDS = ["배송", "납기", "라벨", "수량", "주문", "shipping", "delivery", "label", "invoice"]
 QUOTE_WORDS = ["견적", "샘플", "단가", "구매하고", "quote", "sample", "quotation"]
 # 신규 설계 요구사항·부품 추천·대체품 상담 (증상이 없고 요구사항이 있는 문의)
-DESIGN_WORDS = ["추천", "대체품", "대체할", "후보", "찾고 있", "찾고있", "선정", "신규 설계", "새로 설계", "새 설계", "설계 중", "요구사항", "recommend", "alternative"]
+DESIGN_WORDS = ["어떤 부품", "어느 부품", "무슨 부품", "좋을까요", "만들고 싶", "추천", "대체품", "대체할", "후보", "찾고 있", "찾고있", "선정", "신규 설계", "새로 설계", "새 설계", "설계 중", "요구사항", "recommend", "alternative"]
 URGENT_WORDS = ["긴급", "라인 정지", "양산 중단", "urgent", "asap", "line down"]
 
 _NUM = r"(\d+(?:\.\d+)?)"
@@ -125,21 +125,53 @@ _PLAIN_NUM = r"(\d+(?:\.\d+)?)"
 _RANGE = re.compile(rf"입력(?:\s*전압)?\s*(?:은|는|이|가|:|=)?\s*{_PLAIN_NUM}\s*v?\s*(?:~|∼|-|에서)\s*{_PLAIN_NUM}\s*v")
 
 
+_ENDING = re.compile(r"\s*(?:입니다만|입니다|이에요|예요|이고요|이고|이며|이라서|이라)\s*[.!]?$")
+
+
+def _trim_ending(value: str) -> str:
+    """'…충전입니다' 같은 서술 어미를 뗀다."""
+    return _ENDING.sub("", value).strip()
+
+
+_V_TO_V = re.compile(rf"{_PLAIN_NUM}\s*v\s*(?:에서|→|->)\s*{_PLAIN_NUM}\s*v(?![a-z])")
+_V_INPUT = re.compile(rf"{_PLAIN_NUM}\s*v\s*입력")
+_AMPS = re.compile(rf"(?<![a-z0-9.]){_PLAIN_NUM}\s*a(?![a-z])")
+
+
+def design_conditions(text: str, conditions: Conditions) -> Conditions:
+    """설계 상담의 말투("USB 5V에서 3.3V 0.3A", "5V 입력", "입력 12V에서 9V, 1A")에서 비어 있는 입력·출력·전류를 채운다. 이미 읽은 값은 건드리지 않는다."""
+    lowered = text.lower()
+    values = conditions.model_dump(exclude_none=True)
+    pair = _V_TO_V.search(lowered)
+    if pair:
+        values.setdefault("vin_v", float(pair.group(1)))
+        values.setdefault("vout_v", float(pair.group(2)))
+    elif "vin_v" not in values and (single := _V_INPUT.search(lowered)):
+        values["vin_v"] = float(single.group(1))
+    if "iout_a" not in values and (amps := _AMPS.search(lowered)):
+        values["iout_a"] = float(amps.group(1))
+    return Conditions(**values)
+
+
 def extract_request(text: str, quote: bool, design: bool) -> SalesRequest:
     """견적·샘플·설계 상담에서 고객이 쓴 수량·시점·용도·단계를 뽑는다 (없는 것은 비워 둔다)."""
     lowered = text.lower()
     kind = "sample" if ("샘플" in lowered or "sample" in lowered) else "quote" if quote else "design" if design else ""
     quantity = re.search(r"(\d[\d,]*)\s*(?:개|ea|pcs|릴|reel|장)", lowered)
-    need_by = re.search(r"(\d+\s*주(?:\s*(?:안|내|이내|까지))?|\d+\s*월(?:\s*(?:초|중|말))?(?:\s*까지)?|\d+\s*일\s*(?:안|내|이내|까지))", text)
-    application = re.search(r"(?:용도는?|용도\s*:|용으로|에 사용|에 쓸|에 쓰는)\s*([^.,\n]{0,30})", text)
+    need_by = re.search(
+        r"(\d+\s*주(?:\s*(?:안|내|이내|까지))?|\d+\s*월(?:\s*(?:초|중|말))?(?:\s*까지)?|\d+\s*일\s*(?:안|내|이내|까지)"
+        r"|(?:다음|이번|내)\s*(?:달|주|분기)(?:\s*(?:초|중|말))?(?:\s*까지)?|(?:올해|내년)\s*(?:초|말)(?:\s*까지)?|연말(?:\s*까지)?|연초(?:\s*까지)?)",
+        text,
+    )
+    application = re.search(r"(?:용도는?|용도\s*:|사용처는?|적용처는?|(?:적용|사용)\s*제품은?|용으로|에 사용|에 쓸|에 쓰는)\s*([^.,\n]{0,30})", text)
     app_before = re.search(r"([^.,\n]{2,25}?)\s*(?:용으로|에 사용|에 쓸|에 쓰는|에 쓰려)", text)
-    stage = "production" if re.search(r"양산|mass production", lowered) else "prototype" if re.search(r"시제품|프로토|평가용|평가 보드|prototype", lowered) else ""
+    stage = "prototype" if re.search(r"양산\s*(?:전|이전|직전|앞)", lowered) else "production" if re.search(r"양산|mass production", lowered) else "prototype" if re.search(r"시제품|프로토|평가용|평가 보드|prototype", lowered) else ""
     notes = [word for word in ("저잡음", "저노이즈", "고효율", "효율", "소형", "저전력", "low noise") if word in lowered]
     return SalesRequest(
         kind=kind,
         quantity=int(quantity.group(1).replace(",", "")) if quantity else None,
         need_by=need_by.group(1).strip() if need_by else "",
-        application=(application.group(1).strip() if application else (app_before.group(1).strip() if app_before else "")),
+        application=_trim_ending(application.group(1).strip() if application else (app_before.group(1).strip() if app_before else "")),
         stage=stage,
         notes=", ".join(notes),
     )
@@ -169,6 +201,9 @@ def classify_rules(complaint: Complaint) -> IntakeResult:
         category = "technical"
     else:
         category = "other"
+
+    if category == "design_request":
+        conditions = design_conditions(text, conditions)
 
     missing: list[str] = []
     if category in ("technical", "quality_claim") and not parts:

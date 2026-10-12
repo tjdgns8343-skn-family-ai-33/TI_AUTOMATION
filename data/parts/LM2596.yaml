@@ -8,6 +8,8 @@ recommended:                   # §7.3 p.5 (동작 조건)
   vin_min_v: 4.5
   vin_max_v: 40
   iout_max_a: 3.0
+  vout_min_v: 1.2              # p.1 특징: 가변형 출력 1.2–37 V (description과 같은 값)
+  vout_max_v: 37
   tj_max_c: 125                # 동작 온도 −40~125 °C. 절대 최대 접합 온도는 150 °C (§7.1)
 typical:
   vref_v: 1.23                 # §7.8 p.6: 가변형 피드백 전압 (1.193–1.267 V, 25 °C)

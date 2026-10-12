@@ -18,6 +18,8 @@ LDO_DROPOUT_DEFAULT_V = 0.5  # 카드에 드롭아웃이 없을 때의 가정
 DEFAULT_TA_C = 25.0  # 주변 온도를 모를 때의 가정
 SYNC_BUCK_DCR_OHM = 0.05  # 인덕터 DCR을 모를 때의 가정 (100 % 듀티 드롭아웃 계산)
 UNSUPPORTED = re.compile(r"연산\s*증폭|op-?amp|증폭기|충전기|배터리\s*충전|통신|센서", re.IGNORECASE)
+# 용도 설명에도 쓰이는 말(센서 노드 등)과 달리, 이 말이 나오면 요구한 부품 종류 자체가 전원(LDO·벅)이 아니다
+HARD_UNSUPPORTED = re.compile(r"충전\s*(?:IC|칩|기|회로)|charger|charging\s*ic|연산\s*증폭기|op-?amp", re.IGNORECASE)
 PREFER_LDO = ("저잡음", "저노이즈", "low noise")
 PREFER_BUCK = ("효율", "고효율")
 SCOPE_NOTE = "이 시스템에 정리된 {n}종 부품 안에서만 비교한 결과이며 TI 전체 제품을 검색한 것이 아닙니다. 가격·재고·납기는 포함하지 않습니다."
@@ -54,6 +56,10 @@ def _evaluate(card: dict[str, Any], req: dict[str, Any], gateway: ToolGateway, a
             fails.append(f"부하 전류 {iout:g} A가 권장 최대 {recommended['iout_max_a']:g} A보다 큼")
     else:
         warnings.append("카드에 최대 출력 전류가 없음 (외부 FET·인덕터로 정해지므로 설계에서 확인)")
+    out_lo = recommended.get("vout_min_v") or typical.get("output_v_min")
+    out_hi = recommended.get("vout_max_v") or typical.get("output_v_max")
+    if out_lo and out_hi and not out_lo <= vout <= out_hi:  # 입력·전류가 맞아도 장치가 만들 수 있는 출력 범위를 벗어나면 안 된다
+        fails.append(f"출력 {vout:g} V가 장치의 출력 범위 {out_lo:g}~{out_hi:g} V를 벗어남")
     step_down = not (vout >= vin_lo and kind in SUPPORTED_TYPES)
     if not step_down:
         fails.append(f"출력 {vout:g} V가 최저 입력 {vin_lo:g} V 이상이라 강압(LDO·벅)으로는 만들 수 없음")
@@ -133,7 +139,7 @@ def _controller_window(typical, recommended, vin_lo, vin_hi, vout, fails, facts)
 def run_recommend(intake: IntakeResult, complaint_text: str, gateway: ToolGateway) -> dict[str, Any]:
     req = _requirements(intake.conditions)
     base = {"requirements": req, "candidates": [], "top": "", "assumptions": [], "missing": []}
-    if UNSUPPORTED.search(complaint_text) and not (req["vout_v"] and req["iout_a"]):
+    if HARD_UNSUPPORTED.search(complaint_text) or (UNSUPPORTED.search(complaint_text) and not (req["vout_v"] and req["iout_a"])):
         return {**base, "status": "unsupported", "note": "지금은 전원(LDO·벅) 추천만 지원합니다. 다른 종류는 영업·기술지원 담당자가 직접 검토합니다."}
     missing = [label for key, label in (("vin_max_v", "입력 전압(최저·최고)"), ("vout_v", "출력 전압"), ("iout_a", "부하 전류")) if req[key] is None]
     if missing:

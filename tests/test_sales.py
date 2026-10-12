@@ -19,13 +19,16 @@ QUOTES = [cid for cid, c in CASES.items() if c["expected_category"] == "quote_sa
 DESIGNS = [cid for cid, c in CASES.items() if c["expected_category"] == "design_request"]
 
 
-def run(case_id: str, decisions: tuple[str, ...] = ()) -> dict:
-    case = CASES[case_id]
+def run_case(case: dict, decisions: tuple[str, ...] = ()) -> dict:
     graph, thread = build_graph(), new_thread_id()
     result = start_run(graph, Complaint(customer=case["customer"], subject=case["subject"], body=case["body"]), thread)
     for action in decisions:
         result = resume_run(graph, thread, action)
     return result
+
+
+def run(case_id: str, decisions: tuple[str, ...] = ()) -> dict:
+    return run_case(CASES[case_id], decisions)
 
 
 def test_nine_cases_with_a_rubric_and_hand_derived_expectations():

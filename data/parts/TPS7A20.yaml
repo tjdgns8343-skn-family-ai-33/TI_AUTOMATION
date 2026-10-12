@@ -8,6 +8,8 @@ recommended:                   # §5.3 p.5
   vin_min_v: 1.6
   vin_max_v: 6.0
   iout_max_a: 0.3
+  vout_min_v: 0.8              # p.1 특징: 출력 0.8–5.5 V (description과 같은 값)
+  vout_max_v: 5.5
   tj_max_c: 125
   cout_min_f: 1.0e-6           # 표는 1 µF, 각주(3)은 유효 용량 0.47 µF 이상이 안정성에 필요
   cout_max_f: 200.0e-6
